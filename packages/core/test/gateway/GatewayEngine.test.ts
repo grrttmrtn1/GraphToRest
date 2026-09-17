@@ -8,10 +8,34 @@ import { GatewayEngine } from '../../src/gateway/GatewayEngine';
 import { GatewayError } from '../../src/gateway/errors';
 import { registerAdapter } from '../../src/adapters/registry';
 import { MockAdapter } from '../../src/adapters/MockAdapter';
+import type { Adapter, AuthContext } from '../../src/adapters/Adapter';
 
 let dbPath: string;
 let store: MappingStore;
 let engine: GatewayEngine;
+
+// Test adapter that captures the operation passed to execute()
+class SpyAdapter implements Adapter {
+  readonly type = 'spy';
+  capturedOperation: Record<string, unknown> | null = null;
+
+  async introspect(authContext: AuthContext): Promise<unknown> {
+    return null;
+  }
+
+  async generateMappings(introspection: unknown): Promise<any[]> {
+    return [];
+  }
+
+  async execute(
+    operation: Record<string, unknown>,
+    params: Record<string, string>,
+    authContext: AuthContext
+  ): Promise<unknown> {
+    this.capturedOperation = operation;
+    return { id: params.id, displayName: 'Spy User', mail: 'spy@example.com' };
+  }
+}
 
 beforeEach(() => {
   registerAdapter('mock', () => new MockAdapter());
@@ -69,5 +93,44 @@ describe('GatewayEngine.handle', () => {
       status: 404,
     });
     await expect(engine.handle('GET', '/nowhere')).rejects.toBeInstanceOf(GatewayError);
+  });
+
+  it('substitutes $params.* variables in the operation before passing to adapter.execute', async () => {
+    const spyAdapter = new SpyAdapter();
+    registerAdapter('spy', () => spyAdapter);
+    const connection = store.createConnection({ name: 'c2', adapterType: 'spy', authMode: 'passthrough' });
+    store.createMapping({
+      connectionId: connection.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'user(id: $id)', variables: { id: '$params.id' } },
+      responseTemplate: { id: '$.id', name: '$.displayName', email: '$.mail' },
+    });
+    await engine.handle('GET', '/users/42');
+    expect(spyAdapter.capturedOperation).not.toBeNull();
+    expect(spyAdapter.capturedOperation?.variables).toEqual({ id: '42' });
+  });
+
+  it('throws a 500 GatewayError when mapping references a non-existent connection', async () => {
+    // Create a real connection and mapping, then delete the connection to simulate dangling reference
+    const connection = store.createConnection({ name: 'c3', adapterType: 'mock', authMode: 'passthrough' });
+    store.createMapping({
+      connectionId: connection.id,
+      route: '/orphaned/{id}',
+      method: 'GET',
+      operation: { query: 'test' },
+      responseTemplate: null,
+    });
+    // Delete the connection from the database to simulate a dangling reference
+    const db = (store as any).db; // Access private db for testing
+    db.prepare('PRAGMA foreign_keys = OFF').run();
+    db.prepare('DELETE FROM connections WHERE id = ?').run(connection.id);
+    db.prepare('PRAGMA foreign_keys = ON').run();
+
+    await expect(engine.handle('GET', '/orphaned/42')).rejects.toMatchObject({
+      code: 'CONNECTION_NOT_FOUND',
+      status: 500,
+    });
+    await expect(engine.handle('GET', '/orphaned/42')).rejects.toBeInstanceOf(GatewayError);
   });
 });
