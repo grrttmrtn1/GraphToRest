@@ -1,0 +1,13 @@
+services:
+  graphtorest:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - graphtorest-data:/data
+    environment:
+      PORT: "3000"
+      DB_PATH: /data/graphtorest.db
+
+volumes:
+  graphtorest-data:
