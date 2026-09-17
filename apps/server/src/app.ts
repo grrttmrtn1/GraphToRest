@@ -33,5 +33,10 @@ export function createApp(deps: AppDeps): Express {
     app.use('/admin', createAdminRouter(deps.mappingStore));
   }
 
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error', details: {} } });
+  });
+
   return app;
 }

@@ -9,11 +9,13 @@ import { createApp } from '../src/app';
 let dbPath: string;
 let app: ReturnType<typeof createApp>;
 let mappingStore: MappingStore;
+let db: ReturnType<typeof openDb>;
 
 beforeEach(() => {
   registerDefaultAdapters();
   dbPath = path.join(os.tmpdir(), `graphtorest-server-${Date.now()}-${Math.random()}.db`);
-  mappingStore = new MappingStore(openDb(dbPath));
+  db = openDb(dbPath);
+  mappingStore = new MappingStore(db);
   const gatewayEngine = new GatewayEngine(mappingStore);
   const openApiGenerator = new OpenApiGenerator();
   app = createApp({ mappingStore, gatewayEngine, openApiGenerator, apiEnabled: true, adminEnabled: true });
@@ -40,13 +42,13 @@ async function seedUserRoute() {
       responseTemplate: { id: '$.id', name: '$.displayName', email: '$.mail' },
     });
   const apiKeyRes = await request(app).post('/admin/api-keys').send({ label: 'test' });
-  return apiKeyRes.body.plaintext as string;
+  return { plaintext: apiKeyRes.body.plaintext as string, id: apiKeyRes.body.id as string };
 }
 
 describe('server integration', () => {
   it('serves the resolved mapping for an authenticated request', async () => {
     const apiKey = await seedUserRoute();
-    const res = await request(app).get('/api/users/42').set('Authorization', `Bearer ${apiKey}`);
+    const res = await request(app).get('/api/users/42').set('Authorization', `Bearer ${apiKey.plaintext}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ id: '42', name: 'Mock User', email: 'mock@example.com' });
   });
@@ -66,7 +68,7 @@ describe('server integration', () => {
 
   it('returns a normalized 404 for an unmapped route', async () => {
     const apiKey = await seedUserRoute();
-    const res = await request(app).get('/api/nowhere').set('Authorization', `Bearer ${apiKey}`);
+    const res = await request(app).get('/api/nowhere').set('Authorization', `Bearer ${apiKey.plaintext}`);
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: 'No mapping for GET /nowhere', details: {} } });
   });
@@ -83,5 +85,30 @@ describe('server integration', () => {
     const res = await request(app).get('/api/docs/');
     expect(res.status).toBe(200);
     expect(res.text).toContain('swagger-ui');
+  });
+
+  it('records last-used timestamp on the API key after a successful authenticated request', async () => {
+    const apiKey = await seedUserRoute();
+    const before = db.prepare('SELECT last_used_at FROM api_keys WHERE id = ?').get(apiKey.id) as {
+      last_used_at: string | null;
+    };
+    expect(before.last_used_at).toBeNull();
+
+    const res = await request(app).get('/api/users/42').set('Authorization', `Bearer ${apiKey.plaintext}`);
+    expect(res.status).toBe(200);
+
+    const after = db.prepare('SELECT last_used_at FROM api_keys WHERE id = ?').get(apiKey.id) as {
+      last_used_at: string | null;
+    };
+    expect(after.last_used_at).toBeTruthy();
+  });
+
+  it('returns a normalized 500 error for malformed JSON request bodies', async () => {
+    const res = await request(app)
+      .post('/admin/connections')
+      .set('Content-Type', 'application/json')
+      .send('{"name": "c1", "adapterType":');
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error', details: {} } });
   });
 });
