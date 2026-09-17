@@ -1,0 +1,16 @@
+{
+  "name": "@graphtorest/cli",
+  "version": "0.1.0",
+  "bin": { "gtr": "./bin/gtr.js" },
+  "main": "dist/index.js",
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "@graphtorest/core": "*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
