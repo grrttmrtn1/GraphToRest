@@ -134,3 +134,51 @@ describe('GatewayEngine.handle', () => {
     await expect(engine.handle('GET', '/orphaned/42')).rejects.toBeInstanceOf(GatewayError);
   });
 });
+
+describe('GatewayEngine.handle request context', () => {
+  it('passes the request context (query, body) through to the adapter', async () => {
+    const received: unknown[] = [];
+    registerAdapter('spy', () => ({
+      type: 'spy',
+      async introspect() {
+        return {};
+      },
+      async generateMappings() {
+        return [];
+      },
+      async execute(_operation, _params, _authContext, request) {
+        received.push(request);
+        return {};
+      },
+    }));
+    const connection = store.createConnection({ name: 'spy-conn', adapterType: 'spy', authMode: 'passthrough' });
+    store.createMapping({ connectionId: connection.id, route: '/spy/{id}', method: 'GET', operation: {} });
+
+    await engine.handle('GET', '/spy/1', {}, { query: { select: 'id' }, body: { x: 1 } });
+
+    expect(received).toEqual([{ query: { select: 'id' }, body: { x: 1 } }]);
+  });
+
+  it('passes the connection authMode through the auth context', async () => {
+    const received: unknown[] = [];
+    registerAdapter('spy2', () => ({
+      type: 'spy2',
+      async introspect() {
+        return {};
+      },
+      async generateMappings() {
+        return [];
+      },
+      async execute(_operation, _params, authContext) {
+        received.push(authContext.authMode);
+        return {};
+      },
+    }));
+    const connection = store.createConnection({ name: 'spy2-conn', adapterType: 'spy2', authMode: 'managed' });
+    store.createMapping({ connectionId: connection.id, route: '/spy2/{id}', method: 'GET', operation: {} });
+
+    await engine.handle('GET', '/spy2/1');
+
+    expect(received).toEqual(['managed']);
+  });
+});

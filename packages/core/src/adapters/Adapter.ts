@@ -1,6 +1,12 @@
 export interface AuthContext {
   connectionId: string;
   vendorToken?: string;
+  authMode?: string;
+}
+
+export interface RequestContext {
+  query?: Record<string, string>;
+  body?: unknown;
 }
 
 export interface MappingDraft {
@@ -17,6 +23,7 @@ export interface Adapter {
   execute(
     operation: Record<string, unknown>,
     params: Record<string, string>,
-    authContext: AuthContext
+    authContext: AuthContext,
+    request?: RequestContext
   ): Promise<unknown>;
 }

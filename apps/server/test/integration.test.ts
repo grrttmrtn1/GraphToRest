@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
-import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters } from '@graphtorest/core';
+import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters, registerAdapter } from '@graphtorest/core';
 import { createApp } from '../src/app';
 
 let dbPath: string;
@@ -153,5 +153,39 @@ describe('server integration', () => {
       });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('INVALID_INPUT');
+  });
+
+  it('forwards query params and the vendor token header to the adapter', async () => {
+    let received: any = null;
+    registerAdapter('spy', () => ({
+      type: 'spy',
+      async introspect() {
+        return {};
+      },
+      async generateMappings() {
+        return [];
+      },
+      async execute(_operation, params, authContext, request) {
+        received = { params, authContext, request };
+        return { ok: true };
+      },
+    }));
+    const connectionRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'spy-conn', adapterType: 'spy', authMode: 'passthrough' });
+    await request(app)
+      .post('/admin/mappings')
+      .send({ connectionId: connectionRes.body.id, route: '/spy/{id}', method: 'GET', operation: { kind: 'noop' } });
+    const apiKeyRes = await request(app).post('/admin/api-keys').send({});
+
+    const res = await request(app)
+      .get('/api/spy/7?select=id,name')
+      .set('Authorization', `Bearer ${apiKeyRes.body.plaintext}`)
+      .set('X-Vendor-Token', 'vendor-abc');
+
+    expect(res.status).toBe(200);
+    expect(received.params).toEqual({ id: '7' });
+    expect(received.authContext.vendorToken).toBe('vendor-abc');
+    expect(received.request.query).toEqual({ select: 'id,name' });
   });
 });

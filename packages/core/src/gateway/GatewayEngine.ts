@@ -1,4 +1,5 @@
 import type { MappingStore, MappingRecord } from '../storage/MappingStore';
+import type { RequestContext } from '../adapters/Adapter';
 import { createAdapter } from '../adapters/registry';
 import { matchRoute } from './matchRoute';
 import { GatewayError } from './errors';
@@ -20,7 +21,12 @@ export class GatewayEngine {
     return null;
   }
 
-  async handle(method: string, path: string, incomingAuth: { vendorToken?: string } = {}): Promise<unknown> {
+  async handle(
+    method: string,
+    path: string,
+    incomingAuth: { vendorToken?: string } = {},
+    request: RequestContext = {}
+  ): Promise<unknown> {
     const resolved = this.resolve(method, path);
     if (!resolved) {
       throw new GatewayError('NOT_FOUND', `No mapping for ${method} ${path}`, 404);
@@ -32,10 +38,12 @@ export class GatewayEngine {
     }
     const adapter = createAdapter(connection.adapterType);
     const operation = resolveVariables(mapping.operation, params);
-    const raw = await adapter.execute(operation, params, {
-      connectionId: connection.id,
-      vendorToken: incomingAuth.vendorToken,
-    });
+    const raw = await adapter.execute(
+      operation,
+      params,
+      { connectionId: connection.id, vendorToken: incomingAuth.vendorToken, authMode: connection.authMode },
+      request
+    );
     return shapeResponse(raw, mapping.responseTemplate);
   }
 }

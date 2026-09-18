@@ -5,7 +5,13 @@ export function createApiRouter(gatewayEngine: GatewayEngine): Router {
   const router = Router();
   router.use(async (req, res) => {
     try {
-      const result = await gatewayEngine.handle(req.method, req.path);
+      const vendorToken = req.header('x-vendor-token') ?? undefined;
+      const result = await gatewayEngine.handle(
+        req.method,
+        req.path,
+        { vendorToken },
+        { query: req.query as Record<string, string>, body: req.body }
+      );
       res.json(result);
     } catch (err) {
       if (!(err instanceof GatewayError)) console.error(err);

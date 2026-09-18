@@ -13,3 +13,11 @@ export function createAdapter(type: string): Adapter {
   }
   return factory();
 }
+
+export function listAdapterTypes(): string[] {
+  return [...registry.keys()];
+}
+
+export function clearAdapters(): void {
+  registry.clear();
+}
