@@ -6,6 +6,8 @@ import { mappingCreate } from './commands/mappingCreate';
 import { apiKeyCreate } from './commands/apiKeyCreate';
 import { mappingGenerate } from './commands/mappingGenerate';
 import { mappingUpdate } from './commands/mappingUpdate';
+import { mappingExport } from './commands/mappingExport';
+import { mappingImport } from './commands/mappingImport';
 
 const program = new Command();
 program.name('gtr').option('--db <path>', 'SQLite file path', process.env.DB_PATH ?? './data/graphtorest.db');
@@ -73,6 +75,23 @@ program
       operation: opts.operation ? JSON.parse(opts.operation) : undefined,
       responseTemplate: opts.responseTemplate ? JSON.parse(opts.responseTemplate) : undefined,
     });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('mapping-export')
+  .option('--out <file>', 'write YAML to this file instead of stdout')
+  .action((opts) => {
+    const store = openEmbeddedStore(program.opts().db);
+    const yamlText = mappingExport(store, { outFile: opts.out });
+    if (!opts.out) console.log(yamlText);
+  });
+
+program
+  .command('mapping-import <file>')
+  .action((file) => {
+    const store = openEmbeddedStore(program.opts().db);
+    const result = mappingImport(store, { file });
     console.log(JSON.stringify(result, null, 2));
   });
 

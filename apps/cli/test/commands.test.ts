@@ -8,6 +8,8 @@ import { mappingCreate, parseRoute } from '../src/commands/mappingCreate';
 import { apiKeyCreate } from '../src/commands/apiKeyCreate';
 import { mappingGenerate } from '../src/commands/mappingGenerate';
 import { mappingUpdate } from '../src/commands/mappingUpdate';
+import { mappingExport } from '../src/commands/mappingExport';
+import { mappingImport } from '../src/commands/mappingImport';
 
 let dbPath: string;
 
@@ -94,5 +96,73 @@ describe('CLI embedded commands', () => {
   it('mappingUpdate throws for an unknown mapping id', () => {
     const store = freshStore();
     expect(() => mappingUpdate(store, { id: 'nope' })).toThrow('No mapping with id nope');
+  });
+
+  it('mappingExport writes YAML that mappingImport can read back to update the same mapping', () => {
+    const store = freshStore();
+    const connection = connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const mapping = store.createMapping({
+      connectionId: connection.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'original' },
+      source: 'generated',
+    });
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-export-${Date.now()}-${Math.random()}.yaml`);
+
+    mappingExport(store, { outFile: yamlPath });
+    let yamlText = fs.readFileSync(yamlPath, 'utf8');
+    expect(yamlText).toContain('route: GET /users/{id}');
+    yamlText = yamlText.replace('original', 'hand-edited');
+    fs.writeFileSync(yamlPath, yamlText, 'utf8');
+
+    const imported = mappingImport(store, { file: yamlPath });
+
+    expect(imported).toHaveLength(1);
+    expect(store.getMapping(mapping.id)?.operation).toEqual({ query: 'hand-edited' });
+    expect(store.getMapping(mapping.id)?.source).toBe('manual');
+    fs.unlinkSync(yamlPath);
+  });
+
+  it('mappingImport creates a new manual mapping from a hand-authored YAML entry with no id', () => {
+    const store = freshStore();
+    connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-import-new-${Date.now()}-${Math.random()}.yaml`);
+    fs.writeFileSync(
+      yamlPath,
+      [
+        '- connection: c1',
+        '  route: "GET /widgets/{id}"',
+        '  source: generated',
+        '  operation:',
+        '    query: "widget(id: $id) { id }"',
+        '  response:',
+        '    shape: passthrough',
+        '  auth: inherit',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const imported = mappingImport(store, { file: yamlPath });
+
+    expect(imported).toHaveLength(1);
+    expect(imported[0].route).toBe('/widgets/{id}');
+    expect(imported[0].method).toBe('GET');
+    expect(imported[0].source).toBe('manual');
+    fs.unlinkSync(yamlPath);
+  });
+
+  it('mappingImport throws when the YAML entry references an unknown connection', () => {
+    const store = freshStore();
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-import-badconn-${Date.now()}-${Math.random()}.yaml`);
+    fs.writeFileSync(
+      yamlPath,
+      '- connection: nope\n  route: "GET /x"\n  source: manual\n  operation: {}\n  response:\n    shape: passthrough\n  auth: inherit\n',
+      'utf8'
+    );
+
+    expect(() => mappingImport(store, { file: yamlPath })).toThrow(/nope/);
+    fs.unlinkSync(yamlPath);
   });
 });

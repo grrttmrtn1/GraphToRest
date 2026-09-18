@@ -6,7 +6,8 @@
   "scripts": { "build": "tsc" },
   "dependencies": {
     "@graphtorest/core": "*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
