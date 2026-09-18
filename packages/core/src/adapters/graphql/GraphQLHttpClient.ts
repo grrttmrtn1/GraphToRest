@@ -51,21 +51,26 @@ export class GraphQLHttpClient {
       });
     }
 
-    let body: GraphQLHttpResponse;
+    const text = await response.text();
+    let body: GraphQLHttpResponse | null = null;
     try {
-      body = (await response.json()) as GraphQLHttpResponse;
+      body = JSON.parse(text) as GraphQLHttpResponse;
     } catch {
-      throw new GatewayError('VENDOR_ERROR', 'GraphQL endpoint returned a non-JSON response', 502, { vendor: 'graphql' });
+      // non-JSON body — body stays null, handled below
     }
 
     if (!response.ok) {
-      const firstError = body.errors?.[0];
+      const firstError = body?.errors?.[0];
       throw new GatewayError(
         firstError?.extensions?.code ?? 'VENDOR_ERROR',
         firstError?.message ?? `GraphQL endpoint responded with status ${response.status}`,
         response.status,
-        { vendor: 'graphql', body }
+        { vendor: 'graphql', body: body ?? text.slice(0, 500) }
       );
+    }
+
+    if (!body) {
+      throw new GatewayError('VENDOR_ERROR', 'GraphQL endpoint returned a non-JSON response', 502, { vendor: 'graphql' });
     }
 
     if (body.errors && body.errors.length > 0) {

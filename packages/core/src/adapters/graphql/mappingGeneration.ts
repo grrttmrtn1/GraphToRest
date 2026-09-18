@@ -64,6 +64,7 @@ function buildMappingDraft(field: GraphQLField, types: GraphQLNamedType[]): Mapp
 
 function buildScalarSelection(field: GraphQLField, types: GraphQLNamedType[]): ScalarSelection | null {
   const returnType = unwrapType(field.type);
+  if (returnType.isList) return null;
   if (!returnType.namedType) return null;
   if (SCALAR_KINDS.has(scalarKindOf(returnType.namedType, types))) {
     return { text: '', fieldNames: [] };

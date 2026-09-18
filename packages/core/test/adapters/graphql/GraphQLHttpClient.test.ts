@@ -78,4 +78,18 @@ describe('GraphQLHttpClient.execute', () => {
     const client = new GraphQLHttpClient(ENDPOINT, 'passthrough', 'vendor-token-1');
     await expect(client.execute({ query: 'query { nope }' })).rejects.toMatchObject({ status: 502, code: 'VENDOR_UNREACHABLE' });
   });
+
+  it('preserves the non-2xx status when the response body is not JSON', async () => {
+    nock(HOST).post('/graphql').reply(504, '<html><body>Gateway Timeout</body></html>');
+
+    const client = new GraphQLHttpClient(ENDPOINT, 'passthrough', 'vendor-token-1');
+    await expect(client.execute({ query: 'query { nope }' })).rejects.toMatchObject({ status: 504 });
+  });
+
+  it('normalizes a 200-status non-JSON response to a 502 GatewayError', async () => {
+    nock(HOST).post('/graphql').reply(200, 'not json');
+
+    const client = new GraphQLHttpClient(ENDPOINT, 'passthrough', 'vendor-token-1');
+    await expect(client.execute({ query: 'query { nope }' })).rejects.toMatchObject({ status: 502, code: 'VENDOR_ERROR' });
+  });
 });

@@ -38,6 +38,11 @@ const SCHEMA: GraphQLSchemaIntrospection = {
           args: [{ name: 'teamIds', type: { kind: 'LIST', name: null, ofType: { kind: 'SCALAR', name: 'ID', ofType: null } } }],
           type: { kind: 'SCALAR', name: 'Int', ofType: null },
         },
+        {
+          name: 'users',
+          args: [],
+          type: { kind: 'NON_NULL', name: null, ofType: { kind: 'LIST', name: null, ofType: { kind: 'NON_NULL', name: null, ofType: { kind: 'OBJECT', name: 'User', ofType: null } } } },
+        },
       ],
     },
     {
@@ -93,6 +98,11 @@ describe('generateMappingsFromIntrospection', () => {
   it('skips a field whose single argument is list-typed', () => {
     const drafts = generateMappingsFromIntrospection(SCHEMA);
     expect(drafts.some((d) => d.route.includes('usersByTeam'))).toBe(false);
+  });
+
+  it('skips a field whose return type is a list', () => {
+    const drafts = generateMappingsFromIntrospection(SCHEMA);
+    expect(drafts.some((d) => d.route.includes('users'))).toBe(false);
   });
 
   it('returns an empty array when the schema has no query type', () => {
