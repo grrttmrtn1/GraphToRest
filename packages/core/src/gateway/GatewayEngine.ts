@@ -41,7 +41,12 @@ export class GatewayEngine {
     const raw = await adapter.execute(
       operation,
       params,
-      { connectionId: connection.id, vendorToken: incomingAuth.vendorToken, authMode: connection.authMode },
+      {
+        connectionId: connection.id,
+        vendorToken: incomingAuth.vendorToken,
+        authMode: connection.authMode,
+        config: connection.config,
+      },
       request
     );
     return shapeResponse(raw, mapping.responseTemplate);

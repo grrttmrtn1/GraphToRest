@@ -11,6 +11,7 @@ import { MockAdapter } from '../../src/adapters/MockAdapter';
 import type { Adapter, AuthContext } from '../../src/adapters/Adapter';
 
 let dbPath: string;
+let db: ReturnType<typeof openDb>;
 let store: MappingStore;
 let engine: GatewayEngine;
 
@@ -40,11 +41,13 @@ class SpyAdapter implements Adapter {
 beforeEach(() => {
   registerAdapter('mock', () => new MockAdapter());
   dbPath = path.join(os.tmpdir(), `graphtorest-gateway-${Date.now()}-${Math.random()}.db`);
-  store = new MappingStore(openDb(dbPath));
+  db = openDb(dbPath);
+  store = new MappingStore(db);
   engine = new GatewayEngine(store);
 });
 
 afterEach(() => {
+  db.close();
   for (const suffix of ['', '-wal', '-shm']) {
     if (fs.existsSync(dbPath + suffix)) fs.unlinkSync(dbPath + suffix);
   }
@@ -180,5 +183,33 @@ describe('GatewayEngine.handle request context', () => {
     await engine.handle('GET', '/spy2/1');
 
     expect(received).toEqual(['managed']);
+  });
+
+  it('passes the connection config through the auth context', async () => {
+    const received: unknown[] = [];
+    registerAdapter('spy3', () => ({
+      type: 'spy3',
+      async introspect() {
+        return {};
+      },
+      async generateMappings() {
+        return [];
+      },
+      async execute(_operation, _params, authContext) {
+        received.push(authContext.config);
+        return {};
+      },
+    }));
+    const connection = store.createConnection({
+      name: 'spy3-conn',
+      adapterType: 'spy3',
+      authMode: 'passthrough',
+      config: { endpoint: 'https://example.com/graphql' },
+    });
+    store.createMapping({ connectionId: connection.id, route: '/spy3/{id}', method: 'GET', operation: {} });
+
+    await engine.handle('GET', '/spy3/1');
+
+    expect(received).toEqual([{ endpoint: 'https://example.com/graphql' }]);
   });
 });

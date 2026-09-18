@@ -2,6 +2,7 @@ export interface AuthContext {
   connectionId: string;
   vendorToken?: string;
   authMode?: string;
+  config?: Record<string, unknown> | null;
 }
 
 export interface RequestContext {
