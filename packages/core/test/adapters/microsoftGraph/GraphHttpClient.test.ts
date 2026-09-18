@@ -134,4 +134,15 @@ describe('GraphHttpClient.batch', () => {
     const client = new GraphHttpClient('passthrough', 'vendor-token');
     await expect(client.batch([{ id: 'user', method: 'GET', path: '/users/999' }])).rejects.toBeInstanceOf(GatewayError);
   });
+
+  it('propagates the failed sub-response\'s own status onto the thrown GatewayError', async () => {
+    nock('https://graph.microsoft.com')
+      .post('/v1.0/$batch')
+      .reply(200, { responses: [{ id: 'user', status: 404, body: { error: { message: 'not found' } } }] });
+
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    await expect(client.batch([{ id: 'user', method: 'GET', path: '/users/999' }])).rejects.toMatchObject({
+      status: 404,
+    });
+  });
 });

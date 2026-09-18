@@ -71,10 +71,11 @@ export class GraphHttpClient {
       const byId: Record<string, unknown> = {};
       for (const response of raw.responses) {
         if (response.status >= 400) {
+          const status = Number.isInteger(response.status) && response.status > 0 ? response.status : 502;
           throw new GatewayError(
             'VENDOR_ERROR',
             `Batch sub-request "${response.id}" failed with status ${response.status}`,
-            502,
+            status,
             { vendor: 'microsoft-graph', body: response.body }
           );
         }
