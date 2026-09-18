@@ -42,4 +42,35 @@ describe('OpenApiGenerator', () => {
     const doc = generator.generate([]) as any;
     expect(doc.paths).toEqual({});
   });
+
+  it('declares select/filter/expand/limit/cursor query params for a "list" operation kind', () => {
+    const listMapping: MappingRecord = {
+      id: 'm2',
+      connectionId: 'c1',
+      route: '/msgraph/users',
+      method: 'GET',
+      operation: { kind: 'list', path: '/users' },
+      responseTemplate: null,
+      source: 'generated',
+    };
+    const doc = generator.generate([listMapping]) as any;
+    const queryParams = doc.paths['/msgraph/users'].get.parameters.filter((p: any) => p.in === 'query');
+    expect(queryParams.map((p: any) => p.name)).toEqual(['select', 'filter', 'expand', 'limit', 'cursor']);
+    expect(queryParams.every((p: any) => p.required === false && p.schema.type === 'string')).toBe(true);
+  });
+
+  it('declares select/expand query params for a "get" operation kind', () => {
+    const getMapping: MappingRecord = {
+      id: 'm3',
+      connectionId: 'c1',
+      route: '/msgraph/users/{id}',
+      method: 'GET',
+      operation: { kind: 'get', path: '/users/{id}' },
+      responseTemplate: null,
+      source: 'generated',
+    };
+    const doc = generator.generate([getMapping]) as any;
+    const queryParams = doc.paths['/msgraph/users/{id}'].get.parameters.filter((p: any) => p.in === 'query');
+    expect(queryParams.map((p: any) => p.name)).toEqual(['select', 'expand']);
+  });
 });
