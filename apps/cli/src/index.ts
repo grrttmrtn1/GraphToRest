@@ -4,6 +4,8 @@ import { openEmbeddedStore } from './embeddedClient';
 import { connectionCreate } from './commands/connectionCreate';
 import { mappingCreate } from './commands/mappingCreate';
 import { apiKeyCreate } from './commands/apiKeyCreate';
+import { mappingGenerate } from './commands/mappingGenerate';
+import { mappingUpdate } from './commands/mappingUpdate';
 
 const program = new Command();
 program.name('gtr').option('--db <path>', 'SQLite file path', process.env.DB_PATH ?? './data/graphtorest.db');
@@ -43,6 +45,38 @@ program
   });
 
 program
+  .command('mapping-generate')
+  .requiredOption('--connection-id <id>')
+  .option('--vendor-token <token>')
+  .option('--force', 'overwrite manual mappings too', false)
+  .action(async (opts) => {
+    const store = openEmbeddedStore(program.opts().db);
+    const result = await mappingGenerate(store, {
+      connectionId: opts.connectionId,
+      vendorToken: opts.vendorToken,
+      force: opts.force,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('mapping-update')
+  .requiredOption('--id <id>')
+  .option('--route <route>', 'e.g. "GET /users/{id}"')
+  .option('--operation <json>', 'JSON-encoded operation object')
+  .option('--response-template <json>', 'JSON-encoded response template')
+  .action((opts) => {
+    const store = openEmbeddedStore(program.opts().db);
+    const result = mappingUpdate(store, {
+      id: opts.id,
+      route: opts.route,
+      operation: opts.operation ? JSON.parse(opts.operation) : undefined,
+      responseTemplate: opts.responseTemplate ? JSON.parse(opts.responseTemplate) : undefined,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
   .command('apikey-create')
   .option('--label <label>')
   .action((opts) => {
@@ -50,4 +84,7 @@ program
     console.log(JSON.stringify(apiKeyCreate(store, { label: opts.label }), null, 2));
   });
 
-program.parse();
+program.parseAsync().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});
