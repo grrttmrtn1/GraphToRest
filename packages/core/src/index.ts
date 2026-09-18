@@ -2,6 +2,7 @@ export type { Adapter, AuthContext, MappingDraft, RequestContext } from './adapt
 export { registerAdapter, createAdapter, listAdapterTypes, clearAdapters } from './adapters/registry';
 export { MockAdapter } from './adapters/MockAdapter';
 export { MicrosoftGraphAdapter } from './adapters/microsoftGraph/MicrosoftGraphAdapter';
+export { GraphQLAdapter } from './adapters/graphql/GraphQLAdapter';
 export { registerDefaultAdapters } from './adapters/defaults';
 
 export { openDb } from './storage/db';
