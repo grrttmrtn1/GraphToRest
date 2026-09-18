@@ -21,3 +21,5 @@ export type { ErrorResponse } from './gateway/errors';
 export { OpenApiGenerator } from './openapi/OpenApiGenerator';
 export { generateAndPersistMappings } from './mappingEngine/generateMappings';
 export type { GenerationResult } from './mappingEngine/generateMappings';
+export { mappingToYamlEntry, yamlEntryToMappingInput } from './mappingEngine/yamlTransform';
+export type { MappingYamlEntry, MappingInput } from './mappingEngine/yamlTransform';
