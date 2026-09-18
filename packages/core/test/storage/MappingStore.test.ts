@@ -79,6 +79,70 @@ describe('MappingStore', () => {
     expect(mapping.responseTemplate).toBeNull();
   });
 
+  it('gets a mapping by id', () => {
+    const connection = store.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const mapping = store.createMapping({ connectionId: connection.id, route: '/users/{id}', method: 'GET', operation: {} });
+    expect(store.getMapping(mapping.id)).toEqual(mapping);
+  });
+
+  it('returns null from getMapping for an unknown id', () => {
+    expect(store.getMapping('nope')).toBeNull();
+  });
+
+  it('finds a mapping by method and route', () => {
+    const connection = store.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const mapping = store.createMapping({ connectionId: connection.id, route: '/users/{id}', method: 'GET', operation: {} });
+    expect(store.getMappingByRouteAndMethod('GET', '/users/{id}')).toEqual(mapping);
+  });
+
+  it('returns null from getMappingByRouteAndMethod when nothing matches', () => {
+    expect(store.getMappingByRouteAndMethod('GET', '/nope')).toBeNull();
+  });
+
+  it('updates a mapping in place and sets the given source', () => {
+    const connection = store.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const mapping = store.createMapping({
+      connectionId: connection.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'old' },
+      source: 'generated',
+    });
+    const updated = store.updateMapping(mapping.id, {
+      operation: { query: 'new' },
+      responseTemplate: { id: '$.id' },
+      source: 'manual',
+    });
+    expect(updated).toEqual({
+      id: mapping.id,
+      connectionId: connection.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'new' },
+      responseTemplate: { id: '$.id' },
+      source: 'manual',
+    });
+    expect(store.getMapping(mapping.id)).toEqual(updated);
+  });
+
+  it('updateMapping leaves fields not in the patch unchanged', () => {
+    const connection = store.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const mapping = store.createMapping({
+      connectionId: connection.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'old' },
+      responseTemplate: { id: '$.id' },
+      source: 'generated',
+    });
+    const updated = store.updateMapping(mapping.id, { source: 'manual' });
+    expect(updated).toEqual({ ...mapping, source: 'manual' });
+  });
+
+  it('returns null from updateMapping for an unknown id', () => {
+    expect(store.updateMapping('nope', { source: 'manual' })).toBeNull();
+  });
+
   it('creates an api key whose plaintext verifies against the stored hash', () => {
     const created = store.createApiKey({ label: 'test key' });
     const found = store.findApiKeyById(created.id);

@@ -43,6 +43,9 @@ interface MappingRow {
   source: 'generated' | 'manual';
 }
 
+const MAPPING_COLUMNS =
+  'id, connection_id as connectionId, route, method, operation, response_template as responseTemplate, source';
+
 function mapConnectionRow(row: ConnectionRow): ConnectionRecord {
   return {
     id: row.id,
@@ -50,6 +53,18 @@ function mapConnectionRow(row: ConnectionRow): ConnectionRecord {
     adapterType: row.adapterType,
     authMode: row.authMode,
     config: row.config ? JSON.parse(row.config) : null,
+  };
+}
+
+function mapMappingRow(row: MappingRow): MappingRecord {
+  return {
+    id: row.id,
+    connectionId: row.connectionId,
+    route: row.route,
+    method: row.method,
+    operation: JSON.parse(row.operation),
+    responseTemplate: row.responseTemplate ? JSON.parse(row.responseTemplate) : null,
+    source: row.source,
   };
 }
 
@@ -119,21 +134,55 @@ export class MappingStore {
     };
   }
 
+  getMapping(id: string): MappingRecord | null {
+    const row = this.db.prepare(`SELECT ${MAPPING_COLUMNS} FROM mappings WHERE id = ?`).get(id) as MappingRow | undefined;
+    return row ? mapMappingRow(row) : null;
+  }
+
+  getMappingByRouteAndMethod(method: string, route: string): MappingRecord | null {
+    const row = this.db
+      .prepare(`SELECT ${MAPPING_COLUMNS} FROM mappings WHERE method = ? AND route = ?`)
+      .get(method, route) as MappingRow | undefined;
+    return row ? mapMappingRow(row) : null;
+  }
+
   listMappings(): MappingRecord[] {
-    const rows = this.db
-      .prepare(
-        'SELECT id, connection_id as connectionId, route, method, operation, response_template as responseTemplate, source FROM mappings'
-      )
-      .all() as MappingRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      connectionId: row.connectionId,
-      route: row.route,
-      method: row.method,
-      operation: JSON.parse(row.operation),
-      responseTemplate: row.responseTemplate ? JSON.parse(row.responseTemplate) : null,
-      source: row.source,
-    }));
+    const rows = this.db.prepare(`SELECT ${MAPPING_COLUMNS} FROM mappings`).all() as MappingRow[];
+    return rows.map(mapMappingRow);
+  }
+
+  updateMapping(
+    id: string,
+    patch: {
+      route?: string;
+      method?: string;
+      operation?: Record<string, unknown>;
+      responseTemplate?: Record<string, string> | null;
+      source: 'generated' | 'manual';
+    }
+  ): MappingRecord | null {
+    const existing = this.getMapping(id);
+    if (!existing) return null;
+    const next: MappingRecord = {
+      id: existing.id,
+      connectionId: existing.connectionId,
+      route: patch.route ?? existing.route,
+      method: patch.method ?? existing.method,
+      operation: patch.operation ?? existing.operation,
+      responseTemplate: patch.responseTemplate !== undefined ? patch.responseTemplate : existing.responseTemplate,
+      source: patch.source,
+    };
+    this.db
+      .prepare('UPDATE mappings SET route = ?, method = ?, operation = ?, response_template = ?, source = ? WHERE id = ?')
+      .run(
+        next.route,
+        next.method,
+        JSON.stringify(next.operation),
+        next.responseTemplate ? JSON.stringify(next.responseTemplate) : null,
+        next.source,
+        id
+      );
+    return next;
   }
 
   createApiKey(input: { label?: string }): GeneratedApiKey & ApiKeyRecord {
