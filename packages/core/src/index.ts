@@ -1,6 +1,7 @@
-export type { Adapter, AuthContext, MappingDraft } from './adapters/Adapter';
-export { registerAdapter, createAdapter } from './adapters/registry';
+export type { Adapter, AuthContext, MappingDraft, RequestContext } from './adapters/Adapter';
+export { registerAdapter, createAdapter, listAdapterTypes, clearAdapters } from './adapters/registry';
 export { MockAdapter } from './adapters/MockAdapter';
+export { MicrosoftGraphAdapter } from './adapters/microsoftGraph/MicrosoftGraphAdapter';
 export { registerDefaultAdapters } from './adapters/defaults';
 
 export { openDb } from './storage/db';
