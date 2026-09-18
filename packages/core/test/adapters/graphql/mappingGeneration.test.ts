@@ -85,9 +85,32 @@ describe('generateMappingsFromIntrospection', () => {
     });
   });
 
-  it('skips a field whose return type has no scalar sub-fields at all', () => {
+  it('skips the bare route for a field whose return type has no scalar sub-fields of its own', () => {
     const drafts = generateMappingsFromIntrospection(SCHEMA);
-    expect(drafts.some((d) => d.route.includes('viewer'))).toBe(false);
+    expect(drafts.some((d) => d.route === '/graphql/viewer')).toBe(false);
+  });
+
+  it('generates a nested-resource route for a field whose only content is a nested object', () => {
+    const drafts = generateMappingsFromIntrospection(SCHEMA);
+    expect(drafts).toContainEqual({
+      route: '/graphql/viewer/address',
+      method: 'GET',
+      operation: { query: 'query { viewer { address { city } } }' },
+      responseTemplate: { city: '$.viewer.address.city' },
+    });
+  });
+
+  it('generates a nested-resource route alongside a field that also has its own scalar leaves', () => {
+    const drafts = generateMappingsFromIntrospection(SCHEMA);
+    expect(drafts).toContainEqual({
+      route: '/graphql/user/{id}/address',
+      method: 'GET',
+      operation: {
+        query: 'query($id: ID!) { user(id: $id) { address { city } } }',
+        variables: { id: '$params.id' },
+      },
+      responseTemplate: { city: '$.user.address.city' },
+    });
   });
 
   it('skips a field with more than one argument', () => {
