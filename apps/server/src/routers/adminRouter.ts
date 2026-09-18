@@ -10,7 +10,18 @@ export function createAdminRouter(mappingStore: MappingStore): Router {
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'name, adapterType, authMode required', details: {} } });
       return;
     }
-    res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode }));
+    try {
+      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode }));
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        res.status(409).json({
+          error: { code: 'CONFLICT', message: 'A connection with this name already exists', details: {} },
+        });
+        return;
+      }
+      throw err;
+    }
   });
 
   router.get('/connections', (_req, res) => {
@@ -25,9 +36,26 @@ export function createAdminRouter(mappingStore: MappingStore): Router {
       });
       return;
     }
-    res.status(201).json(
-      mappingStore.createMapping({ connectionId, route, method, operation, responseTemplate, source })
-    );
+    try {
+      res.status(201).json(
+        mappingStore.createMapping({ connectionId, route, method, operation, responseTemplate, source })
+      );
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        res.status(409).json({
+          error: { code: 'CONFLICT', message: 'A mapping with this route and method already exists', details: {} },
+        });
+        return;
+      }
+      if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+        res.status(400).json({
+          error: { code: 'INVALID_INPUT', message: 'connectionId does not reference an existing connection', details: {} },
+        });
+        return;
+      }
+      throw err;
+    }
   });
 
   router.get('/mappings', (_req, res) => {

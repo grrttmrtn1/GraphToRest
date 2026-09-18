@@ -10,6 +10,7 @@ export function openDb(filePath: string): Database.Database {
   }
   const db = new Database(filePath);
   db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
   for (const migration of MIGRATIONS) {
     db.exec(migration);
   }

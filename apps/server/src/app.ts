@@ -1,6 +1,6 @@
 import express, { type Express } from 'express';
 import swaggerUi from 'swagger-ui-express';
-import type { MappingStore, GatewayEngine, OpenApiGenerator } from '@graphtorest/core';
+import { toErrorResponse, type MappingStore, type GatewayEngine, type OpenApiGenerator } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
@@ -21,11 +21,7 @@ export function createApp(deps: AppDeps): Express {
     app.get('/api/openapi.json', (_req, res) => {
       res.json(deps.openApiGenerator.generate(deps.mappingStore.listMappings()));
     });
-    app.use(
-      '/api/docs',
-      swaggerUi.serve,
-      swaggerUi.setup(deps.openApiGenerator.generate(deps.mappingStore.listMappings()))
-    );
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/openapi.json' } }));
     app.use('/api', createApiKeyAuth(deps.mappingStore), createApiRouter(deps.gatewayEngine));
   }
 
@@ -34,8 +30,21 @@ export function createApp(deps: AppDeps): Express {
   }
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = (err as { status?: unknown })?.status;
+    if (typeof status === 'number' && status < 500) {
+      const message = (err as { message?: unknown })?.message;
+      res.status(status).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: typeof message === 'string' && message.length > 0 ? message : 'Invalid request',
+          details: {},
+        },
+      });
+      return;
+    }
     console.error(err);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error', details: {} } });
+    const { status: normalizedStatus, body } = toErrorResponse(err);
+    res.status(normalizedStatus).json(body);
   });
 
   return app;

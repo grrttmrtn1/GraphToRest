@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { toErrorResponse, type GatewayEngine } from '@graphtorest/core';
+import { toErrorResponse, GatewayError, type GatewayEngine } from '@graphtorest/core';
 
 export function createApiRouter(gatewayEngine: GatewayEngine): Router {
   const router = Router();
@@ -8,6 +8,7 @@ export function createApiRouter(gatewayEngine: GatewayEngine): Router {
       const result = await gatewayEngine.handle(req.method, req.path);
       res.json(result);
     } catch (err) {
+      if (!(err instanceof GatewayError)) console.error(err);
       const { status, body } = toErrorResponse(err);
       res.status(status).json(body);
     }

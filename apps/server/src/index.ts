@@ -17,6 +17,16 @@ const app = createApp({
   adminEnabled: config.adminEnabled,
 });
 
+if (config.adminEnabled) {
+  console.warn(
+    JSON.stringify({
+      msg: 'admin_api_unauthenticated',
+      warning:
+        'The admin API is enabled with no authentication (deferred to a later plan). Do not expose this port beyond localhost.',
+    })
+  );
+}
+
 app.listen(config.port, () => {
   console.log(JSON.stringify({ msg: 'server_started', port: config.port, dbPath: config.dbPath }));
 });

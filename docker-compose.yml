@@ -1,8 +1,10 @@
 services:
   graphtorest:
     build: .
+    # /admin/* has no authentication until a later plan adds admin login — do not
+    # change this to bind on all interfaces without adding auth first.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - graphtorest-data:/data
     environment:

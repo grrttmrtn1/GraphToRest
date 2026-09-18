@@ -103,12 +103,55 @@ describe('server integration', () => {
     expect(after.last_used_at).toBeTruthy();
   });
 
-  it('returns a normalized 500 error for malformed JSON request bodies', async () => {
+  it('returns a normalized 400 error for malformed JSON request bodies', async () => {
     const res = await request(app)
       .post('/admin/connections')
       .set('Content-Type', 'application/json')
       .send('{"name": "c1", "adapterType":');
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error', details: {} } });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REQUEST');
+  });
+
+  it('returns a 409 conflict when creating a connection with a duplicate name', async () => {
+    await request(app)
+      .post('/admin/connections')
+      .send({ name: 'dup-conn', adapterType: 'mock', authMode: 'passthrough' });
+    const res = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'dup-conn', adapterType: 'mock', authMode: 'passthrough' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  it('returns a 409 conflict when creating a mapping with a duplicate route and method', async () => {
+    const connectionRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'dup-mapping-conn', adapterType: 'mock', authMode: 'passthrough' });
+    const connectionId = connectionRes.body.id;
+    const mappingPayload = {
+      connectionId,
+      route: '/dup/{id}',
+      method: 'GET',
+      operation: { query: 'user(id: $id)', variables: { id: '$params.id' } },
+      responseTemplate: { id: '$.id' },
+    };
+    await request(app).post('/admin/mappings').send(mappingPayload);
+    const res = await request(app).post('/admin/mappings').send(mappingPayload);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  it('returns a 400 error when creating a mapping with a connectionId that does not exist', async () => {
+    const res = await request(app)
+      .post('/admin/mappings')
+      .send({
+        connectionId: 'nonexistent-connection-id',
+        route: '/orphan/{id}',
+        method: 'GET',
+        operation: { query: 'user(id: $id)', variables: { id: '$params.id' } },
+        responseTemplate: { id: '$.id' },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_INPUT');
   });
 });
