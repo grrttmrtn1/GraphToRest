@@ -207,3 +207,79 @@ describe('server integration', () => {
     expect(createRes.body.config).toBeNull();
   });
 });
+
+describe('mapping generation and editing', () => {
+  it('generates mappings for a connection from its adapter', async () => {
+    const connectionRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'gen-conn', adapterType: 'mock', authMode: 'passthrough' });
+    const connectionId = connectionRes.body.id;
+
+    const res = await request(app).post(`/admin/connections/${connectionId}/mappings/generate`).send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.created).toHaveLength(1);
+    expect(res.body.created[0]).toMatchObject({ route: '/users/{id}', method: 'GET', source: 'generated' });
+    expect(res.body.updated).toEqual([]);
+    expect(res.body.skipped).toEqual([]);
+  });
+
+  it('returns 404 for an unknown connection', async () => {
+    const res = await request(app).post('/admin/connections/nope/mappings/generate').send({});
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('skips a manual mapping on regenerate unless force is set, then overwrites it with force', async () => {
+    const connectionRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'gen-conn-2', adapterType: 'mock', authMode: 'passthrough' });
+    const connectionId = connectionRes.body.id;
+    const mappingRes = await request(app)
+      .post('/admin/mappings')
+      .send({
+        connectionId,
+        route: '/users/{id}',
+        method: 'GET',
+        operation: { query: 'hand-written' },
+        source: 'manual',
+      });
+    const mappingId = mappingRes.body.id;
+
+    const skipRes = await request(app).post(`/admin/connections/${connectionId}/mappings/generate`).send({});
+    expect(skipRes.body.skipped).toHaveLength(1);
+    const afterSkip = await request(app).get('/admin/mappings');
+    expect(afterSkip.body.find((m: { id: string }) => m.id === mappingId).operation).toEqual({ query: 'hand-written' });
+
+    const forceRes = await request(app).post(`/admin/connections/${connectionId}/mappings/generate`).send({ force: true });
+    expect(forceRes.body.updated).toHaveLength(1);
+    expect(forceRes.body.updated[0].id).toBe(mappingId);
+    expect(forceRes.body.updated[0].source).toBe('generated');
+  });
+
+  it('updates a mapping and flips its source to manual', async () => {
+    const connectionRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'edit-conn', adapterType: 'mock', authMode: 'passthrough' });
+    const mappingRes = await request(app).post('/admin/mappings').send({
+      connectionId: connectionRes.body.id,
+      route: '/users/{id}',
+      method: 'GET',
+      operation: { query: 'user(id: $id) { id }' },
+    });
+    expect(mappingRes.body.source).toBe('generated');
+
+    const res = await request(app)
+      .patch(`/admin/mappings/${mappingRes.body.id}`)
+      .send({ operation: { query: 'user(id: $id) { id, mail }' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe('manual');
+    expect(res.body.operation).toEqual({ query: 'user(id: $id) { id, mail }' });
+  });
+
+  it('returns 404 when updating an unknown mapping', async () => {
+    const res = await request(app).patch('/admin/mappings/nope').send({ operation: {} });
+    expect(res.status).toBe(404);
+  });
+});
