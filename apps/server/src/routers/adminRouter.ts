@@ -5,13 +5,13 @@ export function createAdminRouter(mappingStore: MappingStore): Router {
   const router = Router();
 
   router.post('/connections', (req, res) => {
-    const { name, adapterType, authMode } = req.body ?? {};
+    const { name, adapterType, authMode, config } = req.body ?? {};
     if (!name || !adapterType || !authMode) {
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'name, adapterType, authMode required', details: {} } });
       return;
     }
     try {
-      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode }));
+      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode, config }));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {

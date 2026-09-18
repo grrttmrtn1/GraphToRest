@@ -51,4 +51,15 @@ describe('CLI embedded commands', () => {
     const created = apiKeyCreate(store, { label: 'ci' });
     expect(store.findApiKeyById(created.id)?.id).toBe(created.id);
   });
+
+  it('connectionCreate persists an optional config object', () => {
+    const store = freshStore();
+    const created = connectionCreate(store, {
+      name: 'graphql-conn',
+      adapterType: 'graphql',
+      authMode: 'passthrough',
+      config: { endpoint: 'https://api.example.com/graphql' },
+    });
+    expect(store.getConnection(created.id)?.config).toEqual({ endpoint: 'https://api.example.com/graphql' });
+  });
 });

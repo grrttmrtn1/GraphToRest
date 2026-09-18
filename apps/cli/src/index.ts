@@ -13,9 +13,16 @@ program
   .requiredOption('--name <name>')
   .requiredOption('--adapter-type <type>')
   .requiredOption('--auth-mode <mode>')
+  .option('--config <json>', 'JSON-encoded adapter config, e.g. a GraphQL endpoint URL')
   .action((opts) => {
     const store = openEmbeddedStore(program.opts().db);
-    console.log(JSON.stringify(connectionCreate(store, opts), null, 2));
+    const result = connectionCreate(store, {
+      name: opts.name,
+      adapterType: opts.adapterType,
+      authMode: opts.authMode,
+      config: opts.config ? JSON.parse(opts.config) : undefined,
+    });
+    console.log(JSON.stringify(result, null, 2));
   });
 
 program

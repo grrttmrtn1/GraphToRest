@@ -188,4 +188,22 @@ describe('server integration', () => {
     expect(received.authContext.vendorToken).toBe('vendor-abc');
     expect(received.request.query).toEqual({ select: 'id,name' });
   });
+
+  it('round-trips a connection config object through the admin API', async () => {
+    const createRes = await request(app)
+      .post('/admin/connections')
+      .send({ name: 'graphql-conn', adapterType: 'graphql', authMode: 'passthrough', config: { endpoint: 'https://api.example.com/graphql' } });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.config).toEqual({ endpoint: 'https://api.example.com/graphql' });
+
+    const listRes = await request(app).get('/admin/connections');
+    const found = listRes.body.find((c: { id: string }) => c.id === createRes.body.id);
+    expect(found.config).toEqual({ endpoint: 'https://api.example.com/graphql' });
+  });
+
+  it('defaults connection config to null when omitted from the admin API', async () => {
+    const createRes = await request(app).post('/admin/connections').send({ name: 'no-config-conn', adapterType: 'mock', authMode: 'passthrough' });
+    expect(createRes.body.config).toBeNull();
+  });
 });
