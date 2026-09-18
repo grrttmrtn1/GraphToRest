@@ -7,14 +7,17 @@ import { MappingStore } from '../../src/storage/MappingStore';
 import { verifySecret, parsePresentedKey } from '../../src/auth/apiKeys';
 
 let dbPath: string;
+let db: ReturnType<typeof openDb>;
 let store: MappingStore;
 
 beforeEach(() => {
   dbPath = path.join(os.tmpdir(), `graphtorest-mappingstore-${Date.now()}-${Math.random()}.db`);
-  store = new MappingStore(openDb(dbPath));
+  db = openDb(dbPath);
+  store = new MappingStore(db);
 });
 
 afterEach(() => {
+  db.close();
   for (const suffix of ['', '-wal', '-shm']) {
     if (fs.existsSync(dbPath + suffix)) fs.unlinkSync(dbPath + suffix);
   }
@@ -30,6 +33,24 @@ describe('MappingStore', () => {
 
   it('returns null for an unknown connection id', () => {
     expect(store.getConnection('nope')).toBeNull();
+  });
+
+  it('defaults config to null when not provided', () => {
+    const created = store.createConnection({ name: 'c-no-config', adapterType: 'mock', authMode: 'passthrough' });
+    expect(created.config).toBeNull();
+    expect(store.getConnection(created.id)?.config).toBeNull();
+  });
+
+  it('creates and retrieves a connection with a config object', () => {
+    const created = store.createConnection({
+      name: 'graphql-github',
+      adapterType: 'graphql',
+      authMode: 'passthrough',
+      config: { endpoint: 'https://api.github.com/graphql' },
+    });
+    expect(created.config).toEqual({ endpoint: 'https://api.github.com/graphql' });
+    expect(store.getConnection(created.id)?.config).toEqual({ endpoint: 'https://api.github.com/graphql' });
+    expect(store.listConnections()).toEqual([created]);
   });
 
   it('creates and lists a mapping with operation and responseTemplate round-tripped as objects', () => {

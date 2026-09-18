@@ -14,5 +14,13 @@ export function openDb(filePath: string): Database.Database {
   for (const migration of MIGRATIONS) {
     db.exec(migration);
   }
+  ensureConnectionsConfigColumn(db);
   return db;
+}
+
+function ensureConnectionsConfigColumn(db: Database.Database): void {
+  const columns = db.prepare('PRAGMA table_info(connections)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'config')) {
+    db.exec('ALTER TABLE connections ADD COLUMN config TEXT');
+  }
 }

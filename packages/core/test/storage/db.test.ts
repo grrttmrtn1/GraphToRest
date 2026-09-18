@@ -48,4 +48,13 @@ describe('openDb', () => {
     expect(tables.length).toBe(4);
     db.close();
   });
+
+  it('adds a nullable config column to connections, idempotently across repeated opens', () => {
+    const file = tmpDbPath();
+    openDb(file).close();
+    const db = openDb(file);
+    const columns = db.prepare('PRAGMA table_info(connections)').all().map((c: any) => c.name);
+    expect(columns).toContain('config');
+    db.close();
+  });
 });

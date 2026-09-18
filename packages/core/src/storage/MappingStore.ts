@@ -7,6 +7,7 @@ export interface ConnectionRecord {
   name: string;
   adapterType: string;
   authMode: string;
+  config: Record<string, unknown> | null;
 }
 
 export interface MappingRecord {
@@ -24,6 +25,14 @@ export interface ApiKeyRecord {
   label: string | null;
 }
 
+interface ConnectionRow {
+  id: string;
+  name: string;
+  adapterType: string;
+  authMode: string;
+  config: string | null;
+}
+
 interface MappingRow {
   id: string;
   connectionId: string;
@@ -34,28 +43,45 @@ interface MappingRow {
   source: 'generated' | 'manual';
 }
 
+function mapConnectionRow(row: ConnectionRow): ConnectionRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    adapterType: row.adapterType,
+    authMode: row.authMode,
+    config: row.config ? JSON.parse(row.config) : null,
+  };
+}
+
 export class MappingStore {
   constructor(private db: Database.Database) {}
 
-  createConnection(input: { name: string; adapterType: string; authMode: string }): ConnectionRecord {
+  createConnection(input: {
+    name: string;
+    adapterType: string;
+    authMode: string;
+    config?: Record<string, unknown> | null;
+  }): ConnectionRecord {
     const id = crypto.randomUUID();
+    const config = input.config ?? null;
     this.db
-      .prepare('INSERT INTO connections (id, name, adapter_type, auth_mode) VALUES (?, ?, ?, ?)')
-      .run(id, input.name, input.adapterType, input.authMode);
-    return { id, name: input.name, adapterType: input.adapterType, authMode: input.authMode };
+      .prepare('INSERT INTO connections (id, name, adapter_type, auth_mode, config) VALUES (?, ?, ?, ?, ?)')
+      .run(id, input.name, input.adapterType, input.authMode, config ? JSON.stringify(config) : null);
+    return { id, name: input.name, adapterType: input.adapterType, authMode: input.authMode, config };
   }
 
   getConnection(id: string): ConnectionRecord | null {
     const row = this.db
-      .prepare('SELECT id, name, adapter_type as adapterType, auth_mode as authMode FROM connections WHERE id = ?')
-      .get(id) as ConnectionRecord | undefined;
-    return row ?? null;
+      .prepare('SELECT id, name, adapter_type as adapterType, auth_mode as authMode, config FROM connections WHERE id = ?')
+      .get(id) as ConnectionRow | undefined;
+    return row ? mapConnectionRow(row) : null;
   }
 
   listConnections(): ConnectionRecord[] {
-    return this.db
-      .prepare('SELECT id, name, adapter_type as adapterType, auth_mode as authMode FROM connections')
-      .all() as ConnectionRecord[];
+    const rows = this.db
+      .prepare('SELECT id, name, adapter_type as adapterType, auth_mode as authMode, config FROM connections')
+      .all() as ConnectionRow[];
+    return rows.map(mapConnectionRow);
   }
 
   createMapping(input: {
