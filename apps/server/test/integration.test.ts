@@ -285,4 +285,13 @@ describe('mapping generation and editing', () => {
     const res = await admin.patch('/admin/mappings/nope').send({ operation: {} });
     expect(res.status).toBe(404);
   });
+
+  it('returns 503 when generating for a managed connection and managed auth is not configured', async () => {
+    const connectionRes = await admin
+      .post('/admin/connections')
+      .send({ name: 'managed-gen', adapterType: 'mock', authMode: 'managed' });
+    const res = await admin.post(`/admin/connections/${connectionRes.body.id}/mappings/generate`).send({});
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe('MANAGED_AUTH_UNAVAILABLE');
+  });
 });

@@ -3,6 +3,8 @@ import type { RequestContext } from '../adapters/Adapter';
 import { createAdapter } from '../adapters/registry';
 import { matchRoute } from './matchRoute';
 import { GatewayError } from './errors';
+import { buildAuthContext } from '../auth/authContext';
+import type { AccessTokenProvider } from '../auth/managedTokenService';
 
 export interface ResolvedRequest {
   mapping: MappingRecord;
@@ -10,7 +12,7 @@ export interface ResolvedRequest {
 }
 
 export class GatewayEngine {
-  constructor(private mappingStore: MappingStore) {}
+  constructor(private mappingStore: MappingStore, private tokenProvider?: AccessTokenProvider) {}
 
   resolve(method: string, path: string): ResolvedRequest | null {
     for (const mapping of this.mappingStore.listMappings()) {
@@ -38,17 +40,8 @@ export class GatewayEngine {
     }
     const adapter = createAdapter(connection.adapterType);
     const operation = resolveVariables(mapping.operation, params);
-    const raw = await adapter.execute(
-      operation,
-      params,
-      {
-        connectionId: connection.id,
-        vendorToken: incomingAuth.vendorToken,
-        authMode: connection.authMode,
-        config: connection.config,
-      },
-      request
-    );
+    const authContext = await buildAuthContext(connection, incomingAuth.vendorToken, this.tokenProvider);
+    const raw = await adapter.execute(operation, params, authContext, request);
     return shapeResponse(raw, mapping.responseTemplate);
   }
 }

@@ -1,6 +1,6 @@
 import express, { type Express } from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { toErrorResponse, GatewayError, type MappingStore, type GatewayEngine, type OpenApiGenerator } from '@graphtorest/core';
+import { toErrorResponse, GatewayError, type MappingStore, type GatewayEngine, type OpenApiGenerator, type ManagedTokenService } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
@@ -12,6 +12,7 @@ export interface AppDeps {
   apiEnabled: boolean;
   adminEnabled: boolean;
   adminSessionTtlMs?: number;
+  managedAuth?: ManagedTokenService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -27,7 +28,10 @@ export function createApp(deps: AppDeps): Express {
   }
 
   if (deps.adminEnabled) {
-    app.use('/admin', createAdminRouter(deps.mappingStore, { sessionTtlMs: deps.adminSessionTtlMs }));
+    app.use(
+      '/admin',
+      createAdminRouter(deps.mappingStore, { sessionTtlMs: deps.adminSessionTtlMs, managedAuth: deps.managedAuth })
+    );
   }
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

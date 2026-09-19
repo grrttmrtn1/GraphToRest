@@ -1,9 +1,18 @@
 import { Router } from 'express';
-import { type MappingStore, generateAndPersistMappings, loginAdmin, toErrorResponse, GatewayError } from '@graphtorest/core';
+import {
+  type MappingStore,
+  type ManagedTokenService,
+  buildAuthContext,
+  generateAndPersistMappings,
+  loginAdmin,
+  toErrorResponse,
+  GatewayError,
+} from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 
 export interface AdminRouterOptions {
   sessionTtlMs?: number;
+  managedAuth?: ManagedTokenService;
 }
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
@@ -84,12 +93,8 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     const force = (req.body ?? {}).force === true;
     const vendorToken = req.header('x-vendor-token') ?? undefined;
     try {
-      const result = await generateAndPersistMappings(
-        mappingStore,
-        connection,
-        { connectionId: connection.id, authMode: connection.authMode, config: connection.config, vendorToken },
-        { force }
-      );
+      const authContext = await buildAuthContext(connection, vendorToken, options.managedAuth);
+      const result = await generateAndPersistMappings(mappingStore, connection, authContext, { force });
       res.json(result);
     } catch (err) {
       if (!(err instanceof GatewayError)) console.error(err);

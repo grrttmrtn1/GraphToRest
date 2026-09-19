@@ -17,10 +17,10 @@ export class GraphHttpClient {
   private client: Client;
 
   constructor(authMode: string, vendorToken: string | undefined) {
-    if (authMode !== 'passthrough') {
+    if (authMode !== 'passthrough' && authMode !== 'managed') {
       throw new GatewayError(
         'UNSUPPORTED_AUTH_MODE',
-        'Microsoft Graph connections only support authMode "passthrough" until Plan 5 adds managed OAuth',
+        'Microsoft Graph connections only support authMode "passthrough" or "managed"',
         501
       );
     }

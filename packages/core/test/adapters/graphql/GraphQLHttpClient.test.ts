@@ -12,9 +12,9 @@ afterEach(() => {
 
 describe('GraphQLHttpClient construction', () => {
   it('throws a 501 GatewayError for an unsupported authMode', () => {
-    expect(() => new GraphQLHttpClient(ENDPOINT, 'managed', 'token')).toThrow(GatewayError);
+    expect(() => new GraphQLHttpClient(ENDPOINT, 'basic', 'token')).toThrow(GatewayError);
     try {
-      new GraphQLHttpClient(ENDPOINT, 'managed', 'token');
+      new GraphQLHttpClient(ENDPOINT, 'basic', 'token');
     } catch (err) {
       expect((err as GatewayError).status).toBe(501);
     }

@@ -21,10 +21,10 @@ export class GraphQLHttpClient {
     authMode: string,
     private vendorToken: string | undefined
   ) {
-    if (authMode !== 'passthrough') {
+    if (authMode !== 'passthrough' && authMode !== 'managed') {
       throw new GatewayError(
         'UNSUPPORTED_AUTH_MODE',
-        'GraphQL connections only support authMode "passthrough" until Plan 5 adds managed OAuth',
+        'GraphQL connections only support authMode "passthrough" or "managed"',
         501
       );
     }

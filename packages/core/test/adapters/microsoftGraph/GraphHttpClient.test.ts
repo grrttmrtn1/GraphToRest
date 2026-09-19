@@ -10,9 +10,9 @@ afterEach(() => {
 
 describe('GraphHttpClient construction', () => {
   it('throws a 501 GatewayError for an unsupported authMode', () => {
-    expect(() => new GraphHttpClient('managed', 'token')).toThrow(GatewayError);
+    expect(() => new GraphHttpClient('basic', 'token')).toThrow(GatewayError);
     try {
-      new GraphHttpClient('managed', 'token');
+      new GraphHttpClient('basic', 'token');
     } catch (err) {
       expect((err as GatewayError).status).toBe(501);
     }

@@ -180,7 +180,8 @@ describe('GatewayEngine.handle request context', () => {
     const connection = store.createConnection({ name: 'spy2-conn', adapterType: 'spy2', authMode: 'managed' });
     store.createMapping({ connectionId: connection.id, route: '/spy2/{id}', method: 'GET', operation: {} });
 
-    await engine.handle('GET', '/spy2/1');
+    const managedEngine = new GatewayEngine(store, { getAccessToken: async () => 'stub-token' });
+    await managedEngine.handle('GET', '/spy2/1');
 
     expect(received).toEqual(['managed']);
   });
