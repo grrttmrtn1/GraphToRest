@@ -28,6 +28,10 @@ describe('parseRoute', () => {
   it('splits "METHOD /path" into method and route', () => {
     expect(parseRoute('GET /users/{id}')).toEqual({ method: 'GET', route: '/users/{id}' });
   });
+
+  it('rejects a route string with no method', () => {
+    expect(() => parseRoute('/users/{id}')).toThrow(/Malformed route/);
+  });
 });
 
 describe('CLI embedded commands', () => {
@@ -195,6 +199,40 @@ describe('CLI embedded commands', () => {
 
     expect(() => mappingImport(store, { file: yamlPath })).toThrow(/nope/);
     expect(store.listMappings()).toHaveLength(0);
+    fs.unlinkSync(yamlPath);
+  });
+  it('mappingImport rolls back earlier writes when a later entry violates UNIQUE(method, route)', () => {
+    const store = freshStore();
+    connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const entry = (route: string) =>
+      ['- connection: c1', `  route: "${route}"`, '  source: manual', '  operation: {}', '  response:', '    shape: passthrough', '  auth: inherit'].join('\n');
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-import-unique-${Date.now()}-${Math.random()}.yaml`);
+    fs.writeFileSync(yamlPath, [entry('GET /a'), entry('GET /b'), entry('GET /b'), ''].join('\n'), 'utf8');
+
+    expect(() => mappingImport(store, { file: yamlPath })).toThrow(/UNIQUE/);
+    expect(store.listMappings()).toHaveLength(0);
+    fs.unlinkSync(yamlPath);
+  });
+
+  it('mappingImport warns when it flips generated mappings to manual', () => {
+    const store = freshStore();
+    const conn = connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const created = store.createMapping({
+      connectionId: conn.id,
+      route: '/a',
+      method: 'GET',
+      operation: {},
+      responseTemplate: null,
+      source: 'generated',
+    });
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-import-warn-${Date.now()}-${Math.random()}.yaml`);
+    mappingExport(store, { outFile: yamlPath });
+    const warnings: string[] = [];
+
+    mappingImport(store, { file: yamlPath, warn: (m) => warnings.push(m) });
+
+    expect(store.getMapping(created.id)?.source).toBe('manual');
+    expect(warnings).toEqual([expect.stringMatching(/1 generated mapping/)]);
     fs.unlinkSync(yamlPath);
   });
 });

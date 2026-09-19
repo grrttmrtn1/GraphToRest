@@ -1,4 +1,5 @@
 import type { MappingRecord } from '../storage/MappingStore';
+import { parseRouteString } from './routeString';
 
 export interface MappingYamlEntry {
   id?: string;
@@ -36,21 +37,27 @@ export function yamlEntryToMappingInput(entry: MappingYamlEntry, connectionId: s
     throw new Error(`Unsupported auth mode "${entry.auth}" on mapping "${entry.route}" — auth overrides require managed-auth support (Plan 5)`);
   }
   const { method, route } = parseRouteString(entry.route);
+  const { operation, response } = entry;
+  if (typeof operation !== 'object' || operation === null || Array.isArray(operation)) {
+    throw new Error(`Mapping "${entry.route}" is missing an "operation" object`);
+  }
+  if (typeof response !== 'object' || response === null || (response.shape !== 'passthrough' && response.shape !== 'template')) {
+    throw new Error(`Mapping "${entry.route}" needs a "response" with shape "passthrough" or "template"`);
+  }
+  if (response.shape === 'template') {
+    const template = response.template;
+    const valid =
+      typeof template === 'object' && template !== null && !Array.isArray(template) && Object.values(template).every((v) => typeof v === 'string');
+    if (!valid) {
+      throw new Error(`Mapping "${entry.route}" has response shape "template" but no valid string-to-string "template" map`);
+    }
+  }
   return {
     id: entry.id,
     connectionId,
     route,
     method,
-    operation: entry.operation,
-    responseTemplate: entry.response.shape === 'template' ? (entry.response.template ?? null) : null,
+    operation,
+    responseTemplate: response.shape === 'template' ? (response.template ?? null) : null,
   };
-}
-
-function parseRouteString(combined: string): { method: string; route: string } {
-  const parts = combined.trim().split(/\s+/);
-  const [method, ...rest] = parts;
-  if (rest.length !== 1 || !rest[0].startsWith('/')) {
-    throw new Error(`Malformed route "${combined}" — expected "METHOD /path"`);
-  }
-  return { method: method.toUpperCase(), route: rest[0] };
 }

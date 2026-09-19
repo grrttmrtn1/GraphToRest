@@ -58,7 +58,7 @@ export async function generateAndPersistMappings(
       responseTemplate: draft.responseTemplate ?? null,
       source: 'generated',
     });
-    updated.push(result as MappingRecord);
+    if (result) updated.push(result);
   }
 
   return { created, updated, skipped, conflicts };

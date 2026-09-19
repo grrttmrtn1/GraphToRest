@@ -22,4 +22,5 @@ export { OpenApiGenerator } from './openapi/OpenApiGenerator';
 export { generateAndPersistMappings } from './mappingEngine/generateMappings';
 export type { GenerationResult } from './mappingEngine/generateMappings';
 export { mappingToYamlEntry, yamlEntryToMappingInput } from './mappingEngine/yamlTransform';
+export { parseRouteString } from './mappingEngine/routeString';
 export type { MappingYamlEntry, MappingInput } from './mappingEngine/yamlTransform';

@@ -71,6 +71,11 @@ function mapMappingRow(row: MappingRow): MappingRecord {
 export class MappingStore {
   constructor(private db: Database.Database) {}
 
+  /** Runs `fn` inside a single SQLite transaction: any throw rolls back every write made within it. */
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
   createConnection(input: {
     name: string;
     adapterType: string;

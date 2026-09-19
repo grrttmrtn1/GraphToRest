@@ -34,7 +34,7 @@ export function createAdminRouter(mappingStore: MappingStore): Router {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Connection not found', details: {} } });
       return;
     }
-    const force = Boolean((req.body ?? {}).force);
+    const force = (req.body ?? {}).force === true;
     const vendorToken = req.header('x-vendor-token') ?? undefined;
     try {
       const result = await generateAndPersistMappings(

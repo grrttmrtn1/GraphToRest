@@ -1856,3 +1856,22 @@ EOF
 - `auth: override` (per-mapping auth mode different from the connection's) — rejected with a thrown error in `yamlEntryToMappingInput`; needs Plan 5's managed-auth support to mean anything.
 - Deleting a mapping (no `DELETE /admin/mappings/:id` or `gtr mapping-delete`) — not called for by the roadmap's Plan 4 bullet, and "drop fields" in spec §5.2 refers to editing a mapping's field selection, not deleting the mapping row.
 - Any change to `OpenApiGenerator` — nested-resource routes are ordinary GET routes with their own path, so they're already served correctly by the existing OpenAPI generation logic with no changes needed.
+
+## Post-Review Amendments (as shipped)
+
+The code blocks above are the original task text. The shipped code differs in these ways after review; later plans should treat the code, not the blocks above, as authoritative:
+
+- `GenerationResult` also carries `conflicts: MappingDraft[]` — drafts whose route+method already belong to a *different* connection. `generateAndPersistMappings` skips them before the `force` check, so `--force` can never overwrite another connection's mapping.
+- `parseRouteString` lives in `packages/core/src/mappingEngine/routeString.ts` and is strict (`"METHOD /path"` exactly, else throws). It is exported from core and used by `yamlEntryToMappingInput`, `mappingCreate` and `mappingUpdate` (the CLI's `parseRoute` is a re-export).
+- `yamlEntryToMappingInput` also validates `operation` (non-array object) and `response` (`shape` of `passthrough`/`template`; a `template` must be a string-to-string map), with errors naming the offending route.
+- `mappingImport` validates every entry first, then performs all writes inside `MappingStore.transaction(...)`, so any failure (including `UNIQUE(method, route)`) rolls back the whole file. It warns (via `args.warn`, default `console.warn`) when it flips generated mappings to `manual` and when a `connection:` on an id-bearing entry is ignored.
+- `list-returning` GraphQL fields produce no nested-resource routes (the `isList` check sits in `buildMappingDrafts`).
+- `POST .../mappings/generate` treats only a JSON boolean `true` as `force`.
+
+## Deferred Review Findings (owner: Plan 5 unless noted)
+
+- `PATCH /admin/mappings/:id` does no input validation (type/shape/leading `/`), unlike `POST` — reuse the `yamlEntryToMappingInput` checks; fits Plan 5's `adminRouter.ts` work.
+- Generation has no `dryRun` and no route-count bound; nested generation can multiply routes on big schemas.
+- `generate` uses connection ids while export/import use connection names — reconcile in Plan 7's CLI rework (accept `--connection <name>`).
+- `mappingExport` doesn't create the parent directory of `--out` and writes non-atomically.
+- Test gaps: `buildNestedResourceDrafts` guard branches (args, list, no scalar leaves, unknown type); admin-level `conflicts` and PATCH-409 tests; CLI-level `auth: override` import rejection; one fragile substring assertion in the list-skip test.

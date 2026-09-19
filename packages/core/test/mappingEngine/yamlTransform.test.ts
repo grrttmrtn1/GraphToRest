@@ -104,4 +104,28 @@ describe('yamlEntryToMappingInput', () => {
       )
     ).toThrow(/GET/);
   });
+  const base = {
+    route: 'GET /x',
+    connection: 'c1',
+    source: 'manual' as const,
+    operation: {},
+    response: { shape: 'passthrough' as const },
+    auth: 'inherit',
+  };
+
+  it('rejects an entry with a missing or non-object operation', () => {
+    expect(() => yamlEntryToMappingInput({ ...base, operation: undefined as never }, 'c1')).toThrow(/operation/);
+    expect(() => yamlEntryToMappingInput({ ...base, operation: 'hi' as never }, 'c1')).toThrow(/operation/);
+    expect(() => yamlEntryToMappingInput({ ...base, operation: [] as never }, 'c1')).toThrow(/operation/);
+  });
+
+  it('rejects an entry with a missing or unknown response shape', () => {
+    expect(() => yamlEntryToMappingInput({ ...base, response: undefined as never }, 'c1')).toThrow(/response/);
+    expect(() => yamlEntryToMappingInput({ ...base, response: { shape: 'weird' } as never }, 'c1')).toThrow(/response/);
+  });
+
+  it('rejects a template response without a string-to-string template map', () => {
+    expect(() => yamlEntryToMappingInput({ ...base, response: { shape: 'template' } }, 'c1')).toThrow(/template/);
+    expect(() => yamlEntryToMappingInput({ ...base, response: { shape: 'template', template: { a: 1 } as never } }, 'c1')).toThrow(/template/);
+  });
 });

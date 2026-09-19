@@ -1,9 +1,7 @@
 import type { MappingStore, MappingRecord } from '@graphtorest/core';
+import { parseRouteString as parseRoute } from '@graphtorest/core';
 
-export function parseRoute(combined: string): { method: string; route: string } {
-  const [method, ...rest] = combined.trim().split(/\s+/);
-  return { method: method.toUpperCase(), route: rest.join(' ') };
-}
+export { parseRoute };
 
 export function mappingCreate(
   store: MappingStore,
