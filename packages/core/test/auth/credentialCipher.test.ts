@@ -50,4 +50,23 @@ describe('CredentialCipher', () => {
     expect(() => cipher.decrypt('not-a-payload')).toThrow(/format/);
     expect(() => cipher.decrypt('v9:a:b:c')).toThrow(/format/);
   });
+
+  it('rejects a payload whose auth tag has been truncated', () => {
+    const cipher = new CredentialCipher(HEX_KEY);
+    const [version, iv, tag, ciphertext] = cipher.encrypt('secret-value').split(':');
+    for (const length of [4, 8, 12, 15]) {
+      const truncated = Buffer.from(tag, 'base64').subarray(0, length).toString('base64');
+      expect(() => cipher.decrypt([version, iv, truncated, ciphertext].join(':'))).toThrow(/format/);
+    }
+  });
+
+  it('rejects a payload with an IV that is not 12 bytes', () => {
+    const cipher = new CredentialCipher(HEX_KEY);
+    const [version, iv, tag, ciphertext] = cipher.encrypt('secret-value').split(':');
+    for (const length of [8, 11, 13, 16]) {
+      const badIv = Buffer.alloc(length, 1).toString('base64');
+      expect(() => cipher.decrypt([version, badIv, tag, ciphertext].join(':'))).toThrow(/format/);
+    }
+    expect(cipher.decrypt([version, iv, tag, ciphertext].join(':'))).toBe('secret-value');
+  });
 });
