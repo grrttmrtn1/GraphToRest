@@ -41,6 +41,8 @@ function statusOf(credentials: ManagedCredentials): CredentialStatus {
 export class ManagedTokenService implements AccessTokenProvider {
   private tokens = new Map<string, { accessToken: string; expiresAt: number }>();
   private inflight = new Map<string, Promise<string>>();
+  // Bumped by saveCredentials. Work that started under an older generation must not persist or cache its result.
+  private generations = new Map<string, number>();
   private pending = new Map<string, PendingAuthorization>();
 
   constructor(
@@ -52,7 +54,9 @@ export class ManagedTokenService implements AccessTokenProvider {
   saveCredentials(connection: ConnectionRecord, input: unknown): CredentialStatus {
     const credentials = parseManagedCredentials(connection.adapterType, input);
     this.writeCredentials(connection.id, credentials);
+    this.generations.set(connection.id, this.generationOf(connection.id) + 1);
     this.tokens.delete(connection.id);
+    this.inflight.delete(connection.id); // later callers must not join a request made with the old credentials
     return statusOf(credentials);
   }
 
@@ -66,7 +70,9 @@ export class ManagedTokenService implements AccessTokenProvider {
     if (cached && cached.expiresAt - REFRESH_SKEW_MS > this.now()) return Promise.resolve(cached.accessToken);
     const existing = this.inflight.get(connection.id);
     if (existing) return existing;
-    const request = this.fetchToken(connection).finally(() => this.inflight.delete(connection.id));
+    const request: Promise<string> = this.fetchToken(connection).finally(() => {
+      if (this.inflight.get(connection.id) === request) this.inflight.delete(connection.id);
+    });
     this.inflight.set(connection.id, request);
     return request;
   }
@@ -102,6 +108,7 @@ export class ManagedTokenService implements AccessTokenProvider {
     if (!connection || !credentials || credentials.grant !== 'authorization_code') {
       throw new GatewayError('INVALID_STATE', 'Unknown or expired authorization state', 400);
     }
+    const generation = this.generationOf(connection.id);
     const response = await exchangeAuthorizationCode(connection.adapterType, credentials, {
       code,
       redirectUri: pending.redirectUri,
@@ -114,6 +121,9 @@ export class ManagedTokenService implements AccessTokenProvider {
         502
       );
     }
+    if (this.generationOf(connection.id) !== generation) {
+      throw new GatewayError('INVALID_STATE', 'Credentials changed during authorization; start authorization again', 400);
+    }
     this.writeCredentials(connection.id, { ...credentials, refreshToken: response.refreshToken });
     this.remember(connection.id, response);
     return { connectionId: connection.id };
@@ -124,6 +134,7 @@ export class ManagedTokenService implements AccessTokenProvider {
     if (!credentials) {
       throw new GatewayError('MANAGED_CREDENTIALS_MISSING', `Connection "${connection.name}" has no managed credentials configured`, 503);
     }
+    const generation = this.generationOf(connection.id);
     let response: TokenResponse;
     if (credentials.grant === 'client_credentials') {
       response = await requestClientCredentialsToken(connection.adapterType, credentials);
@@ -132,12 +143,17 @@ export class ManagedTokenService implements AccessTokenProvider {
         throw new GatewayError('AUTHORIZATION_REQUIRED', `Connection "${connection.name}" has not been authorized yet`, 503);
       }
       response = await requestRefreshedToken(connection.adapterType, credentials);
-      if (response.refreshToken && response.refreshToken !== credentials.refreshToken) {
+      if (response.refreshToken && response.refreshToken !== credentials.refreshToken && this.generationOf(connection.id) === generation) {
         this.writeCredentials(connection.id, { ...credentials, refreshToken: response.refreshToken });
       }
     }
-    this.remember(connection.id, response);
+    // If credentials were replaced mid-flight, the caller still gets its token but it is not cached.
+    if (this.generationOf(connection.id) === generation) this.remember(connection.id, response);
     return response.accessToken;
+  }
+
+  private generationOf(connectionId: string): number {
+    return this.generations.get(connectionId) ?? 0;
   }
 
   private remember(connectionId: string, response: TokenResponse): void {

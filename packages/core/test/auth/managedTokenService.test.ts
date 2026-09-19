@@ -170,4 +170,63 @@ describe('authorization-code flow', () => {
       .reply(200, { access_token: 'at-2', expires_in: 3600 });
     expect(await service.getAccessToken(connection)).toBe('at-2');
   });
+
+  it('does not let a racing saveCredentials be overwritten by an in-flight refresh that rotates the token', async () => {
+    service.saveCredentials(connection, { ...AC_INPUT, refreshToken: 'rt-old' });
+    const replacement = { ...AC_INPUT, clientId: 'cid-new', clientSecret: 'new-secret', refreshToken: 'rt-new' };
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.refresh_token === 'rt-old')
+      .reply(200, () => {
+        service.saveCredentials(connection, replacement); // admin saves while the vendor call is in flight
+        return { access_token: 'at-stale', refresh_token: 'rt-rotated-old', expires_in: 3600 };
+      });
+
+    expect(await service.getAccessToken(connection)).toBe('at-stale'); // the caller still gets the token it asked for
+
+    // The new credentials were not clobbered, and the stale token was not cached: the next call refetches using them.
+    nock(LOGIN)
+      .post(TOKEN_PATH, { grant_type: 'refresh_token', refresh_token: 'rt-new', client_id: 'cid-new', client_secret: 'new-secret' })
+      .reply(200, { access_token: 'at-fresh', expires_in: 3600 });
+    expect(await service.getAccessToken(connection)).toBe('at-fresh');
+  });
+
+  it('does not let a racing saveCredentials be overwritten by an in-flight authorization completion', async () => {
+    service.saveCredentials(connection, AC_INPUT);
+    const state = stateFrom(service.beginAuthorization(connection, REDIRECT));
+    const replacement = { ...AC_INPUT, clientId: 'cid-new', clientSecret: 'new-secret', refreshToken: 'rt-new' };
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.grant_type === 'authorization_code')
+      .reply(200, () => {
+        service.saveCredentials(connection, replacement);
+        return { access_token: 'at-stale', refresh_token: 'rt-stale', expires_in: 3600 };
+      });
+
+    await expect(service.completeAuthorization(state, 'code-1')).rejects.toMatchObject({ code: 'INVALID_STATE', status: 400 });
+
+    nock(LOGIN)
+      .post(TOKEN_PATH, { grant_type: 'refresh_token', refresh_token: 'rt-new', client_id: 'cid-new', client_secret: 'new-secret' })
+      .reply(200, { access_token: 'at-fresh', expires_in: 3600 });
+    expect(await service.getAccessToken(connection)).toBe('at-fresh');
+  });
+});
+
+describe('saveCredentials racing an in-flight fetch', () => {
+  it('does not let a later caller join the stale in-flight request', async () => {
+    service.saveCredentials(connection, CC_INPUT);
+    let later: Promise<string> | undefined;
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.client_secret === 'super-secret-value')
+      .reply(200, () => {
+        service.saveCredentials(connection, { ...CC_INPUT, clientSecret: 'rotated-secret' });
+        later = service.getAccessToken(connection);
+        return { access_token: 'at-stale', expires_in: 3600 };
+      });
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.client_secret === 'rotated-secret')
+      .reply(200, { access_token: 'at-fresh', expires_in: 3600 });
+
+    expect(await service.getAccessToken(connection)).toBe('at-stale');
+    expect(await later).toBe('at-fresh');
+    expect(await service.getAccessToken(connection)).toBe('at-fresh'); // cached from the fresh fetch, not the stale one
+  });
 });
