@@ -27,7 +27,7 @@ let app: ReturnType<typeof createApp>;
 let store: MappingStore;
 let admin: AdminClient;
 
-function buildApp(withManagedAuth: boolean) {
+function buildApp(withManagedAuth: boolean, options: { publicBaseUrl?: string } = { publicBaseUrl: BASE_URL }) {
   const managedAuth = withManagedAuth ? new ManagedTokenService(store, new CredentialCipher('00'.repeat(32))) : undefined;
   return createApp({
     mappingStore: store,
@@ -36,7 +36,7 @@ function buildApp(withManagedAuth: boolean) {
     apiEnabled: true,
     adminEnabled: true,
     managedAuth,
-    publicBaseUrl: BASE_URL,
+    publicBaseUrl: options.publicBaseUrl,
   });
 }
 
@@ -241,5 +241,22 @@ describe('managed auth: authorization code', () => {
     await admin.put(`/admin/connections/${connectionId}/credentials`).send(CC_BODY);
     const res = await admin.post(`/admin/connections/${connectionId}/oauth/start`).send({});
     expect(res.status).toBe(400);
+  });
+
+  it('fails closed with 503 when PUBLIC_BASE_URL is not configured, never deriving redirect_uri from the Host header', async () => {
+    const { connectionId } = await seedManagedGraphConnection();
+    await admin.put(`/admin/connections/${connectionId}/credentials`).send(AC_BODY);
+    const unconfigured = buildApp(true, {});
+    const session = store.createAdminSession(store.findAdminUserByUsername('test-admin')!.id, 60_000);
+    const res = await request(unconfigured)
+      .post(`/admin/connections/${connectionId}/oauth/start`)
+      .set('Authorization', `Bearer ${session.token}`)
+      .set('Host', 'evil.example')
+      .send({});
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe('INVALID_CONFIGURATION');
+    expect(res.body.error.message).toContain('PUBLIC_BASE_URL');
+    expect(res.body.authorizationUrl).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('evil.example');
   });
 });

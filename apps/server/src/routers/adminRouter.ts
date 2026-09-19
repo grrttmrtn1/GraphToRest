@@ -113,7 +113,11 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/connections/:id/oauth/start', (req, res) => {
     const managedAuth = requireManagedAuth();
     const connection = findManagedConnection(req.params.id);
-    const baseUrl = (options.publicBaseUrl ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+    // Never derive the redirect URI from the client-controlled Host header.
+    if (!options.publicBaseUrl) {
+      throw new GatewayError('INVALID_CONFIGURATION', 'PUBLIC_BASE_URL must be configured to start an OAuth authorization', 503);
+    }
+    const baseUrl = options.publicBaseUrl.replace(/\/+$/, '');
     res.json({ authorizationUrl: managedAuth.beginAuthorization(connection, `${baseUrl}/admin/oauth/callback`) });
   });
 
