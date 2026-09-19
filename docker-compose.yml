@@ -1,8 +1,10 @@
 services:
   graphtorest:
     build: .
-    # /admin/* has no authentication until a later plan adds admin login — do not
-    # change this to bind on all interfaces without adding auth first.
+    # /admin/* requires an admin login. Create the first admin (12+ character password) with:
+    #   docker compose run --rm -e GTR_ADMIN_PASSWORD --entrypoint gtr graphtorest admin-create --username admin
+    # The server speaks plain HTTP, so keep the loopback binding unless a TLS-terminating
+    # reverse proxy sits in front of it.
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -10,6 +12,11 @@ services:
     environment:
       PORT: "3000"
       DB_PATH: /data/graphtorest.db
+      # 32-byte key, 64 hex chars or base64 (e.g. `openssl rand -hex 32`). Required for authMode "managed".
+      # Keep it out of the DB volume; losing it makes stored vendor credentials unreadable.
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
+      # Externally reachable URL of this server; the OAuth redirect URI is <PUBLIC_BASE_URL>/admin/oauth/callback.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
 
 volumes:
   graphtorest-data:

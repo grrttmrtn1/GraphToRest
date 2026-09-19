@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   type MappingStore,
   type ManagedTokenService,
+  type ConnectionRecord,
   buildAuthContext,
   generateAndPersistMappings,
   loginAdmin,
@@ -13,11 +14,28 @@ import { createAdminAuth } from '../middleware/adminAuth';
 export interface AdminRouterOptions {
   sessionTtlMs?: number;
   managedAuth?: ManagedTokenService;
+  publicBaseUrl?: string;
 }
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
   const router = Router();
   const requireAdmin = createAdminAuth(mappingStore);
+
+  const requireManagedAuth = (): ManagedTokenService => {
+    if (!options.managedAuth) {
+      throw new GatewayError('MANAGED_AUTH_DISABLED', 'Managed auth is disabled: set CREDENTIAL_ENCRYPTION_KEY on the server', 503);
+    }
+    return options.managedAuth;
+  };
+
+  const findManagedConnection = (id: string): ConnectionRecord => {
+    const connection = mappingStore.getConnection(id);
+    if (!connection) throw new GatewayError('NOT_FOUND', 'Connection not found', 404);
+    if (connection.authMode !== 'managed') {
+      throw new GatewayError('INVALID_INPUT', 'The connection authMode must be "managed" to use stored credentials', 400);
+    }
+    return connection;
+  };
 
   router.post('/login', (req, res) => {
     const { username, password } = req.body ?? {};
@@ -31,6 +49,25 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       return;
     }
     res.json(session);
+  });
+
+  router.get('/oauth/callback', async (req, res) => {
+    try {
+      const managedAuth = requireManagedAuth();
+      const { code, state, error } = req.query;
+      if (typeof error === 'string') {
+        throw new GatewayError('AUTHORIZATION_DENIED', `The vendor reported an authorization error: ${error.slice(0, 100)}`, 400);
+      }
+      if (typeof code !== 'string' || typeof state !== 'string') {
+        throw new GatewayError('INVALID_INPUT', '"code" and "state" query parameters are required', 400);
+      }
+      const { connectionId } = await managedAuth.completeAuthorization(state, code);
+      res.json({ status: 'authorized', connectionId });
+    } catch (err) {
+      if (!(err instanceof GatewayError)) console.error(err);
+      const { status, body } = toErrorResponse(err);
+      res.status(status).json(body);
+    }
   });
 
   // Everything below this line requires an admin session.
@@ -58,6 +95,25 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       }
       throw err;
     }
+  });
+
+  router.put('/connections/:id/credentials', (req, res) => {
+    const managedAuth = requireManagedAuth();
+    const connection = findManagedConnection(req.params.id);
+    res.json(managedAuth.saveCredentials(connection, req.body));
+  });
+
+  router.get('/connections/:id/credentials', (req, res) => {
+    const managedAuth = requireManagedAuth();
+    const connection = findManagedConnection(req.params.id);
+    res.json(managedAuth.getCredentialStatus(connection.id));
+  });
+
+  router.post('/connections/:id/oauth/start', (req, res) => {
+    const managedAuth = requireManagedAuth();
+    const connection = findManagedConnection(req.params.id);
+    const baseUrl = (options.publicBaseUrl ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+    res.json({ authorizationUrl: managedAuth.beginAuthorization(connection, `${baseUrl}/admin/oauth/callback`) });
   });
 
   router.post('/connections', (req, res) => {

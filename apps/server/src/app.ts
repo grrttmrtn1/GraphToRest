@@ -13,6 +13,7 @@ export interface AppDeps {
   adminEnabled: boolean;
   adminSessionTtlMs?: number;
   managedAuth?: ManagedTokenService;
+  publicBaseUrl?: string;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -30,7 +31,11 @@ export function createApp(deps: AppDeps): Express {
   if (deps.adminEnabled) {
     app.use(
       '/admin',
-      createAdminRouter(deps.mappingStore, { sessionTtlMs: deps.adminSessionTtlMs, managedAuth: deps.managedAuth })
+      createAdminRouter(deps.mappingStore, {
+        sessionTtlMs: deps.adminSessionTtlMs,
+        managedAuth: deps.managedAuth,
+        publicBaseUrl: deps.publicBaseUrl,
+      })
     );
   }
 

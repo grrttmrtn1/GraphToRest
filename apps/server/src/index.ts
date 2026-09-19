@@ -1,4 +1,12 @@
-import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters } from '@graphtorest/core';
+import {
+  openDb,
+  MappingStore,
+  GatewayEngine,
+  OpenApiGenerator,
+  ManagedTokenService,
+  CredentialCipher,
+  registerDefaultAdapters,
+} from '@graphtorest/core';
 import { loadConfig } from './config';
 import { createApp } from './app';
 
@@ -6,7 +14,10 @@ registerDefaultAdapters();
 const config = loadConfig();
 const db = openDb(config.dbPath);
 const mappingStore = new MappingStore(db);
-const gatewayEngine = new GatewayEngine(mappingStore);
+const managedAuth = config.credentialEncryptionKey
+  ? new ManagedTokenService(mappingStore, new CredentialCipher(config.credentialEncryptionKey))
+  : undefined;
+const gatewayEngine = new GatewayEngine(mappingStore, managedAuth);
 const openApiGenerator = new OpenApiGenerator();
 
 const app = createApp({
@@ -15,7 +26,18 @@ const app = createApp({
   openApiGenerator,
   apiEnabled: config.apiEnabled,
   adminEnabled: config.adminEnabled,
+  managedAuth,
+  publicBaseUrl: config.publicBaseUrl,
 });
+
+if (!managedAuth) {
+  console.warn(
+    JSON.stringify({
+      msg: 'managed_auth_disabled',
+      warning: 'CREDENTIAL_ENCRYPTION_KEY is not set; connections with authMode "managed" cannot be used.',
+    })
+  );
+}
 
 if (config.adminEnabled && mappingStore.countAdminUsers() === 0) {
   console.warn(
