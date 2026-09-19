@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import crypto from 'node:crypto';
 import nock from 'nock';
 import {
@@ -170,6 +170,43 @@ describe('token requests', () => {
       code: 'VENDOR_AUTH_UNREACHABLE',
       status: 502,
     });
+  });
+
+  it('does not follow a redirect from the token endpoint (would re-POST the secret elsewhere)', async () => {
+    nock(LOGIN).post(TOKEN_PATH).reply(307, '', { location: 'https://evil.example/steal' });
+    const evil = nock('https://evil.example').post('/steal').reply(200, { access_token: 'stolen' });
+
+    const err = await requestClientCredentialsToken('microsoft-graph', msCreds).catch((e) => e);
+
+    expect(err).toMatchObject({ code: 'VENDOR_AUTH_FAILED', status: 502, details: { status: 307 } });
+    expect(JSON.stringify(err.details) + err.message).not.toContain('shh-secret');
+    expect(evil.isDone()).toBe(false);
+  });
+
+  it('sends the token request with a timeout signal and without following redirects', async () => {
+    nock(LOGIN).post(TOKEN_PATH).reply(200, { access_token: 'at' });
+    const spy = vi.spyOn(globalThis, 'fetch');
+    try {
+      await requestClientCredentialsToken('microsoft-graph', msCreds);
+      const init = spy.mock.calls[0][1] as RequestInit;
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.redirect).toBe('manual');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('maps a request timeout to a 502 VENDOR_AUTH_UNREACHABLE without leaking secrets', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+    try {
+      const err = await requestClientCredentialsToken('microsoft-graph', msCreds).catch((e) => e);
+      expect(err).toMatchObject({ code: 'VENDOR_AUTH_UNREACHABLE', status: 502 });
+      expect(JSON.stringify(err.details) + err.message).not.toContain('shh-secret');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('refuses to refresh when no refresh token is stored', async () => {

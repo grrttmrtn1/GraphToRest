@@ -27,6 +27,7 @@ interface OAuthEndpoints {
 }
 
 const GRAPH_DEFAULT_SCOPE = 'https://graph.microsoft.com/.default';
+const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
 
 function invalid(message: string): GatewayError {
   return new GatewayError('INVALID_INPUT', message, 400);
@@ -109,10 +110,18 @@ async function postTokenRequest(tokenUrl: string, form: Record<string, string>):
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
       body: new URLSearchParams(form).toString(),
+      // Never follow redirects: a 307/308 would re-POST the form (client secret, tokens) to another host or over http.
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
     throw new GatewayError('VENDOR_AUTH_UNREACHABLE', 'Could not reach the vendor token endpoint', 502, {
       message: (err as Error).message,
+    });
+  }
+  if (response.status >= 300 && response.status < 400) {
+    throw new GatewayError('VENDOR_AUTH_FAILED', 'The vendor token endpoint responded with a redirect, which is not followed', 502, {
+      status: response.status,
     });
   }
   const text = await response.text();
