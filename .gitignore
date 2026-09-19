@@ -6,3 +6,5 @@ data/
 *.db-shm
 *.log
 .worktrees/
+.superpowers/
+.claude/worktrees/
