@@ -6,9 +6,11 @@ import nock from 'nock';
 import request from 'supertest';
 import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters } from '@graphtorest/core';
 import { createApp } from '../src/app';
+import { createAdminClient, type AdminClient } from './helpers';
 
 let dbPath: string;
 let app: ReturnType<typeof createApp>;
+let admin: AdminClient;
 
 beforeEach(() => {
   registerDefaultAdapters();
@@ -18,6 +20,7 @@ beforeEach(() => {
   const gatewayEngine = new GatewayEngine(mappingStore);
   const openApiGenerator = new OpenApiGenerator();
   app = createApp({ mappingStore, gatewayEngine, openApiGenerator, apiEnabled: true, adminEnabled: true });
+  admin = createAdminClient(app, mappingStore);
 });
 
 afterEach(() => {
@@ -28,25 +31,25 @@ afterEach(() => {
 });
 
 async function seedMicrosoftGraphConnection() {
-  const connectionRes = await request(app)
+  const connectionRes = await admin
     .post('/admin/connections')
     .send({ name: 'ms-graph-test', adapterType: 'microsoft-graph', authMode: 'passthrough' });
   const connectionId = connectionRes.body.id;
 
-  await request(app).post('/admin/mappings').send({
+  await admin.post('/admin/mappings').send({
     connectionId,
     route: '/msgraph/users/{id}',
     method: 'GET',
     operation: { kind: 'get', path: '/users/{id}' },
     responseTemplate: { id: '$.id', displayName: '$.displayName', mail: '$.mail' },
   });
-  await request(app).post('/admin/mappings').send({
+  await admin.post('/admin/mappings').send({
     connectionId,
     route: '/msgraph/users',
     method: 'GET',
     operation: { kind: 'list', path: '/users' },
   });
-  await request(app).post('/admin/mappings').send({
+  await admin.post('/admin/mappings').send({
     connectionId,
     route: '/msgraph/users/{id}/overview',
     method: 'GET',
@@ -64,7 +67,7 @@ async function seedMicrosoftGraphConnection() {
     },
   });
 
-  const apiKeyRes = await request(app).post('/admin/api-keys').send({});
+  const apiKeyRes = await admin.post('/admin/api-keys').send({});
   return apiKeyRes.body.plaintext as string;
 }
 

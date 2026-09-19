@@ -17,12 +17,12 @@ const app = createApp({
   adminEnabled: config.adminEnabled,
 });
 
-if (config.adminEnabled) {
+if (config.adminEnabled && mappingStore.countAdminUsers() === 0) {
   console.warn(
     JSON.stringify({
-      msg: 'admin_api_unauthenticated',
+      msg: 'no_admin_users',
       warning:
-        'The admin API is enabled with no authentication (deferred to a later plan). Do not expose this port beyond localhost.',
+        'No admin users exist, so /admin/* cannot be used. Create one with: gtr admin-create --username <name> (password via --password or GTR_ADMIN_PASSWORD, 12+ characters)',
     })
   );
 }

@@ -1,6 +1,6 @@
 import express, { type Express } from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { toErrorResponse, type MappingStore, type GatewayEngine, type OpenApiGenerator } from '@graphtorest/core';
+import { toErrorResponse, GatewayError, type MappingStore, type GatewayEngine, type OpenApiGenerator } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
@@ -11,6 +11,7 @@ export interface AppDeps {
   openApiGenerator: OpenApiGenerator;
   apiEnabled: boolean;
   adminEnabled: boolean;
+  adminSessionTtlMs?: number;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -26,10 +27,15 @@ export function createApp(deps: AppDeps): Express {
   }
 
   if (deps.adminEnabled) {
-    app.use('/admin', createAdminRouter(deps.mappingStore));
+    app.use('/admin', createAdminRouter(deps.mappingStore, { sessionTtlMs: deps.adminSessionTtlMs }));
   }
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof GatewayError) {
+      const { status: gatewayStatus, body } = toErrorResponse(err);
+      res.status(gatewayStatus).json(body);
+      return;
+    }
     const status = (err as { status?: unknown })?.status;
     if (typeof status === 'number' && status < 500) {
       const message = (err as { message?: unknown })?.message;

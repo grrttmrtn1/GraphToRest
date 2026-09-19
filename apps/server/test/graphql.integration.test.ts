@@ -6,9 +6,11 @@ import nock from 'nock';
 import request from 'supertest';
 import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters, createAdapter } from '@graphtorest/core';
 import { createApp } from '../src/app';
+import { createAdminClient, type AdminClient } from './helpers';
 
 let dbPath: string;
 let app: ReturnType<typeof createApp>;
+let admin: AdminClient;
 
 const HOST = 'https://api.example-graphql-test.com';
 const ENDPOINT = `${HOST}/graphql`;
@@ -21,6 +23,7 @@ beforeEach(() => {
   const gatewayEngine = new GatewayEngine(mappingStore);
   const openApiGenerator = new OpenApiGenerator();
   app = createApp({ mappingStore, gatewayEngine, openApiGenerator, apiEnabled: true, adminEnabled: true });
+  admin = createAdminClient(app, mappingStore);
 });
 
 afterEach(() => {
@@ -31,17 +34,17 @@ afterEach(() => {
 });
 
 async function seedGraphQLConnection() {
-  const connectionRes = await request(app)
+  const connectionRes = await admin
     .post('/admin/connections')
     .send({ name: 'graphql-test', adapterType: 'graphql', authMode: 'passthrough', config: { endpoint: ENDPOINT } });
-  const apiKeyRes = await request(app).post('/admin/api-keys').send({});
+  const apiKeyRes = await admin.post('/admin/api-keys').send({});
   return { connectionId: connectionRes.body.id as string, apiKey: apiKeyRes.body.plaintext as string };
 }
 
 describe('GraphQL adapter end-to-end', () => {
   it('executes a hand-written query mapping and shapes the response by template', async () => {
     const { connectionId, apiKey } = await seedGraphQLConnection();
-    await request(app).post('/admin/mappings').send({
+    await admin.post('/admin/mappings').send({
       connectionId,
       route: '/gh/users/{id}',
       method: 'GET',
@@ -64,7 +67,7 @@ describe('GraphQL adapter end-to-end', () => {
 
   it('normalizes a 200-status errors[] response to a 400 GatewayError', async () => {
     const { connectionId, apiKey } = await seedGraphQLConnection();
-    await request(app).post('/admin/mappings').send({ connectionId, route: '/gh/broken', method: 'GET', operation: { query: 'query { broken }' } });
+    await admin.post('/admin/mappings').send({ connectionId, route: '/gh/broken', method: 'GET', operation: { query: 'query { broken }' } });
 
     nock(HOST)
       .post('/graphql')
@@ -78,7 +81,7 @@ describe('GraphQL adapter end-to-end', () => {
 
   it('preserves a non-2xx HTTP status from the GraphQL endpoint', async () => {
     const { connectionId, apiKey } = await seedGraphQLConnection();
-    await request(app).post('/admin/mappings').send({ connectionId, route: '/gh/down', method: 'GET', operation: { query: 'query { down }' } });
+    await admin.post('/admin/mappings').send({ connectionId, route: '/gh/down', method: 'GET', operation: { query: 'query { down }' } });
 
     nock(HOST).post('/graphql').reply(503, { errors: [{ message: 'Service unavailable' }] });
 
@@ -89,7 +92,7 @@ describe('GraphQL adapter end-to-end', () => {
 
   it('returns a normalized 401 when no vendor token is supplied', async () => {
     const { connectionId, apiKey } = await seedGraphQLConnection();
-    await request(app).post('/admin/mappings').send({ connectionId, route: '/gh/needs-token', method: 'GET', operation: { query: 'query { viewer }' } });
+    await admin.post('/admin/mappings').send({ connectionId, route: '/gh/needs-token', method: 'GET', operation: { query: 'query { viewer }' } });
 
     const res = await request(app).get('/api/gh/needs-token').set('Authorization', `Bearer ${apiKey}`);
 
@@ -148,7 +151,7 @@ describe('GraphQL adapter end-to-end', () => {
     ]);
 
     for (const draft of drafts) {
-      const created = await request(app).post('/admin/mappings').send({ connectionId, ...draft });
+      const created = await admin.post('/admin/mappings').send({ connectionId, ...draft });
       expect(created.status).toBe(201);
     }
 

@@ -1,8 +1,55 @@
 import { Router } from 'express';
-import { type MappingStore, generateAndPersistMappings, toErrorResponse, GatewayError } from '@graphtorest/core';
+import { type MappingStore, generateAndPersistMappings, loginAdmin, toErrorResponse, GatewayError } from '@graphtorest/core';
+import { createAdminAuth } from '../middleware/adminAuth';
 
-export function createAdminRouter(mappingStore: MappingStore): Router {
+export interface AdminRouterOptions {
+  sessionTtlMs?: number;
+}
+
+export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
   const router = Router();
+  const requireAdmin = createAdminAuth(mappingStore);
+
+  router.post('/login', (req, res) => {
+    const { username, password } = req.body ?? {};
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'username and password required', details: {} } });
+      return;
+    }
+    const session = loginAdmin(mappingStore, username, password, options.sessionTtlMs);
+    if (!session) {
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid username or password', details: {} } });
+      return;
+    }
+    res.json(session);
+  });
+
+  // Everything below this line requires an admin session.
+  router.use(requireAdmin);
+
+  router.post('/logout', (_req, res) => {
+    mappingStore.deleteAdminSession(res.locals.adminToken as string);
+    res.status(204).end();
+  });
+
+  router.post('/admin-users', (req, res) => {
+    const { username, password } = req.body ?? {};
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'username and password required', details: {} } });
+      return;
+    }
+    try {
+      res.status(201).json(mappingStore.createAdminUser({ username, password }));
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        res.status(409).json({
+          error: { code: 'CONFLICT', message: 'An admin user with this username already exists', details: {} },
+        });
+        return;
+      }
+      throw err;
+    }
+  });
 
   router.post('/connections', (req, res) => {
     const { name, adapterType, authMode, config } = req.body ?? {};
