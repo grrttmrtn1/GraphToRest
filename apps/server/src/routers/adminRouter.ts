@@ -5,6 +5,7 @@ import {
   type ConnectionRecord,
   buildAuthContext,
   generateAndPersistMappings,
+  parseMappingFields,
   loginAdmin,
   toErrorResponse,
   GatewayError,
@@ -167,9 +168,17 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       });
       return;
     }
+    const fields = parseMappingFields({ route, method, operation, responseTemplate, source });
     try {
       res.status(201).json(
-        mappingStore.createMapping({ connectionId, route, method, operation, responseTemplate, source })
+        mappingStore.createMapping({
+          connectionId,
+          route: fields.route as string,
+          method: fields.method as string,
+          operation: fields.operation as Record<string, unknown>,
+          responseTemplate: fields.responseTemplate,
+          source: fields.source,
+        })
       );
     } catch (err) {
       const code = (err as { code?: string })?.code;
@@ -194,9 +203,23 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   });
 
   router.patch('/mappings/:id', (req, res) => {
-    const { route, method, operation, responseTemplate } = req.body ?? {};
+    const fields = parseMappingFields(req.body ?? {});
+    if (
+      fields.route === undefined &&
+      fields.method === undefined &&
+      fields.operation === undefined &&
+      fields.responseTemplate === undefined
+    ) {
+      throw new GatewayError('INVALID_INPUT', 'At least one of route, method, operation, responseTemplate is required', 400);
+    }
     try {
-      const updated = mappingStore.updateMapping(req.params.id, { route, method, operation, responseTemplate, source: 'manual' });
+      const updated = mappingStore.updateMapping(req.params.id, {
+        route: fields.route,
+        method: fields.method,
+        operation: fields.operation,
+        responseTemplate: fields.responseTemplate,
+        source: 'manual', // any admin edit flips a mapping to manual (spec §5.2); a body "source" is ignored
+      });
       if (!updated) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Mapping not found', details: {} } });
         return;

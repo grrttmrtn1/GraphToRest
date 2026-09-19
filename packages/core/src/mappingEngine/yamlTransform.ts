@@ -34,7 +34,7 @@ export function mappingToYamlEntry(mapping: MappingRecord, connectionName: strin
 
 export function yamlEntryToMappingInput(entry: MappingYamlEntry, connectionId: string): MappingInput {
   if (entry.auth !== 'inherit') {
-    throw new Error(`Unsupported auth mode "${entry.auth}" on mapping "${entry.route}" — auth overrides require managed-auth support (Plan 5)`);
+    throw new Error(`Unsupported auth "${entry.auth}" on mapping "${entry.route}" — only "inherit" is supported (per-mapping auth overrides are not implemented)`);
   }
   const { method, route } = parseRouteString(entry.route);
   const { operation, response } = entry;

@@ -295,3 +295,75 @@ describe('mapping generation and editing', () => {
     expect(res.body.error.code).toBe('MANAGED_AUTH_UNAVAILABLE');
   });
 });
+
+describe('mapping admin validation and conflicts', () => {
+  async function seedConnection(name: string) {
+    const res = await admin.post('/admin/connections').send({ name, adapterType: 'mock', authMode: 'passthrough' });
+    return res.body.id as string;
+  }
+
+  async function seedMapping(connectionId: string, route: string) {
+    const res = await admin
+      .post('/admin/mappings')
+      .send({ connectionId, route, method: 'GET', operation: { query: 'q' }, source: 'generated' });
+    return res.body.id as string;
+  }
+
+  it('rejects malformed PATCH bodies with 400 and leaves the mapping untouched', async () => {
+    const connectionId = await seedConnection('patch-validate');
+    const id = await seedMapping(connectionId, '/patch-me');
+    for (const body of [
+      { operation: [] },
+      { route: 'no-leading-slash' },
+      { method: 'G3T' },
+      { responseTemplate: { id: 5 } },
+      {},
+    ]) {
+      const res = await admin.patch(`/admin/mappings/${id}`).send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+    }
+    const list = await admin.get('/admin/mappings');
+    const mapping = list.body.find((m: { id: string }) => m.id === id);
+    expect(mapping).toMatchObject({ route: '/patch-me', source: 'generated', operation: { query: 'q' } });
+  });
+
+  it('normalizes the method on PATCH', async () => {
+    const connectionId = await seedConnection('patch-method');
+    const id = await seedMapping(connectionId, '/patch-method');
+    const res = await admin.patch(`/admin/mappings/${id}`).send({ method: 'post' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ method: 'POST', source: 'manual' });
+  });
+
+  it('rejects malformed POST bodies with 400', async () => {
+    const connectionId = await seedConnection('post-validate');
+    const res = await admin.post('/admin/mappings').send({ connectionId, route: 'no-slash', method: 'GET', operation: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_INPUT');
+    const bad = await admin.post('/admin/mappings').send({ connectionId, route: '/ok', method: 'GET', operation: 'string' });
+    expect(bad.status).toBe(400);
+  });
+
+  it('returns 409 when a PATCH would collide with another mapping route+method', async () => {
+    const connectionId = await seedConnection('patch-conflict');
+    await seedMapping(connectionId, '/taken');
+    const id = await seedMapping(connectionId, '/free');
+    const res = await admin.patch(`/admin/mappings/${id}`).send({ route: '/taken' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  it("reports a generated route owned by another connection under 'conflicts' and does not touch it", async () => {
+    const owner = await seedConnection('owner');
+    const other = await seedConnection('other');
+    const ownedId = await seedMapping(owner, '/users/{id}'); // the mock adapter generates GET /users/{id}
+    const res = await admin.post(`/admin/connections/${other}/mappings/generate`).send({ force: true });
+    expect(res.status).toBe(200);
+    expect(res.body.created).toEqual([]);
+    expect(res.body.updated).toEqual([]);
+    expect(res.body.conflicts).toHaveLength(1);
+    const list = await admin.get('/admin/mappings');
+    expect(list.body.find((m: { id: string }) => m.id === ownedId).connectionId).toBe(owner);
+  });
+});
