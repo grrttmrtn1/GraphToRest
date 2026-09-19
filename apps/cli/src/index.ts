@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { openEmbeddedStore } from './embeddedClient';
+import fs from 'node:fs';
+import { openEmbeddedStore, openManagedAuth } from './embeddedClient';
 import { connectionCreate } from './commands/connectionCreate';
 import { mappingCreate } from './commands/mappingCreate';
 import { apiKeyCreate } from './commands/apiKeyCreate';
@@ -9,6 +10,7 @@ import { mappingUpdate } from './commands/mappingUpdate';
 import { mappingExport } from './commands/mappingExport';
 import { mappingImport } from './commands/mappingImport';
 import { adminCreate, adminSetPassword } from './commands/adminCreate';
+import { connectionCredentialsSet } from './commands/connectionCredentialsSet';
 
 const program = new Command();
 program.name('gtr').option('--db <path>', 'SQLite file path', process.env.DB_PATH ?? './data/graphtorest.db');
@@ -58,6 +60,7 @@ program
       connectionId: opts.connectionId,
       vendorToken: opts.vendorToken,
       force: opts.force,
+      tokenProvider: openManagedAuth(store),
     });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -128,6 +131,31 @@ program
     const store = openEmbeddedStore(program.opts().db);
     adminSetPassword(store, { username: opts.username, password: resolvePassword(opts.password) });
     console.log(JSON.stringify({ username: opts.username, passwordUpdated: true }));
+  });
+
+program
+  .command('connection-credentials')
+  .requiredOption('--connection-id <id>')
+  .option('--credentials <json>', 'JSON credentials object (visible in shell history; prefer --credentials-file)')
+  .option('--credentials-file <path>', 'path to a JSON file holding the credentials object')
+  .action((opts) => {
+    if (Boolean(opts.credentials) === Boolean(opts.credentialsFile)) {
+      throw new Error('Provide exactly one of --credentials or --credentials-file');
+    }
+    const store = openEmbeddedStore(program.opts().db);
+    const raw = opts.credentials ?? fs.readFileSync(opts.credentialsFile, 'utf8');
+    let credentials: unknown;
+    try {
+      credentials = JSON.parse(raw);
+    } catch {
+      // Deliberately generic: a JSON.parse message can quote a fragment of the secret-bearing input.
+      throw new Error('Credentials are not valid JSON');
+    }
+    const status = connectionCredentialsSet(store, openManagedAuth(store), {
+      connectionId: opts.connectionId,
+      credentials,
+    });
+    console.log(JSON.stringify(status, null, 2));
   });
 
 program.parseAsync().catch((err) => {
