@@ -41,7 +41,7 @@ function statusOf(credentials: ManagedCredentials): CredentialStatus {
 export class ManagedTokenService implements AccessTokenProvider {
   private tokens = new Map<string, { accessToken: string; expiresAt: number }>();
   private inflight = new Map<string, Promise<string>>();
-  // Bumped by saveCredentials. Work that started under an older generation must not persist or cache its result.
+  // Bumped whenever stored credentials change (invalidateInFlight). Work that started under an older generation must not persist or cache its result.
   private generations = new Map<string, number>();
   private pending = new Map<string, PendingAuthorization>();
 
@@ -54,9 +54,7 @@ export class ManagedTokenService implements AccessTokenProvider {
   saveCredentials(connection: ConnectionRecord, input: unknown): CredentialStatus {
     const credentials = parseManagedCredentials(connection.adapterType, input);
     this.writeCredentials(connection.id, credentials);
-    this.generations.set(connection.id, this.generationOf(connection.id) + 1);
-    this.tokens.delete(connection.id);
-    this.inflight.delete(connection.id); // later callers must not join a request made with the old credentials
+    this.invalidateInFlight(connection.id);
     return statusOf(credentials);
   }
 
@@ -125,6 +123,7 @@ export class ManagedTokenService implements AccessTokenProvider {
       throw new GatewayError('INVALID_STATE', 'Credentials changed during authorization; start authorization again', 400);
     }
     this.writeCredentials(connection.id, { ...credentials, refreshToken: response.refreshToken });
+    this.invalidateInFlight(connection.id); // a refresh started before this must not overwrite the new token or cache a stale access token
     this.remember(connection.id, response);
     return { connectionId: connection.id };
   }
@@ -150,6 +149,13 @@ export class ManagedTokenService implements AccessTokenProvider {
     // If credentials were replaced mid-flight, the caller still gets its token but it is not cached.
     if (this.generationOf(connection.id) === generation) this.remember(connection.id, response);
     return response.accessToken;
+  }
+
+  /** Called whenever stored credentials change: drops cached tokens and makes older in-flight work unable to persist or cache. */
+  private invalidateInFlight(connectionId: string): void {
+    this.generations.set(connectionId, this.generationOf(connectionId) + 1);
+    this.tokens.delete(connectionId);
+    this.inflight.delete(connectionId); // later callers must not join a request made with the old credentials
   }
 
   private generationOf(connectionId: string): number {

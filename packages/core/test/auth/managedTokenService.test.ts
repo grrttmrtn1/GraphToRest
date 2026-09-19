@@ -210,6 +210,36 @@ describe('authorization-code flow', () => {
   });
 });
 
+describe('completeAuthorization racing an in-flight refresh', () => {
+  it('does not let an in-flight refresh overwrite a newly authorized refresh token or cache its stale access token', async () => {
+    const REDIRECT = 'https://gtr.example/admin/oauth/callback';
+    service.saveCredentials(connection, { ...AC_INPUT, refreshToken: 'rt-old' });
+    const state = new URL(service.beginAuthorization(connection, REDIRECT)).searchParams.get('state')!;
+    // The vendor answers the refresh slowly, so the re-authorization completes while it is still in flight.
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.grant_type === 'refresh_token' && body.refresh_token === 'rt-old')
+      .delay(150)
+      .reply(200, { access_token: 'at-stale', refresh_token: 'rt-rotated-old', expires_in: 3600 });
+    nock(LOGIN)
+      .post(TOKEN_PATH, (body: Record<string, string>) => body.grant_type === 'authorization_code')
+      .reply(200, { access_token: 'at-authorized', refresh_token: 'rt-authorized', expires_in: 3600 });
+
+    const stale = service.getAccessToken(connection);
+    await service.completeAuthorization(state, 'code-1');
+    expect(await stale).toBe('at-stale'); // the caller still gets the token it asked for
+
+    // The stale access token was not cached over the newly issued one...
+    expect(await service.getAccessToken(connection)).toBe('at-authorized');
+
+    // ...and the newly authorized refresh token was not clobbered by the stale refresh's rotation.
+    clock += 3600 * 1000;
+    nock(LOGIN)
+      .post(TOKEN_PATH, { grant_type: 'refresh_token', refresh_token: 'rt-authorized', client_id: 'cid', client_secret: 'super-secret-value' })
+      .reply(200, { access_token: 'at-fresh', expires_in: 3600 });
+    expect(await service.getAccessToken(connection)).toBe('at-fresh');
+  });
+});
+
 describe('saveCredentials racing an in-flight fetch', () => {
   it('does not let a later caller join the stale in-flight request', async () => {
     service.saveCredentials(connection, CC_INPUT);
