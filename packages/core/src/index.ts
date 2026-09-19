@@ -12,6 +12,8 @@ export type { ConnectionRecord, MappingRecord, ApiKeyRecord } from './storage/Ma
 export { generateApiKey, hashSecret, verifySecret, parsePresentedKey } from './auth/apiKeys';
 export type { GeneratedApiKey } from './auth/apiKeys';
 
+export { CredentialCipher } from './auth/credentialCipher';
+
 export { matchRoute } from './gateway/matchRoute';
 export { GatewayEngine } from './gateway/GatewayEngine';
 export type { ResolvedRequest } from './gateway/GatewayEngine';

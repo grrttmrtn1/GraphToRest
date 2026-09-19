@@ -104,6 +104,19 @@ export class MappingStore {
     return rows.map(mapConnectionRow);
   }
 
+  /** Stores an already-encrypted credentials blob; the store never sees plaintext. Returns false if the connection does not exist. */
+  setConnectionCredentials(id: string, encrypted: string | null): boolean {
+    const result = this.db.prepare('UPDATE connections SET credentials_encrypted = ? WHERE id = ?').run(encrypted, id);
+    return result.changes > 0;
+  }
+
+  getConnectionCredentials(id: string): string | null {
+    const row = this.db.prepare('SELECT credentials_encrypted as credentials FROM connections WHERE id = ?').get(id) as
+      | { credentials: string | null }
+      | undefined;
+    return row?.credentials ?? null;
+  }
+
   createMapping(input: {
     connectionId: string;
     route: string;
