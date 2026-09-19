@@ -165,4 +165,36 @@ describe('CLI embedded commands', () => {
     expect(() => mappingImport(store, { file: yamlPath })).toThrow(/nope/);
     fs.unlinkSync(yamlPath);
   });
+
+  it('mappingImport rejects the whole file atomically when a later entry is invalid', () => {
+    const store = freshStore();
+    connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
+    const yamlPath = path.join(os.tmpdir(), `graphtorest-import-atomic-${Date.now()}-${Math.random()}.yaml`);
+    fs.writeFileSync(
+      yamlPath,
+      [
+        '- connection: c1',
+        '  route: "GET /widgets/{id}"',
+        '  source: generated',
+        '  operation:',
+        '    query: "widget(id: $id) { id }"',
+        '  response:',
+        '    shape: passthrough',
+        '  auth: inherit',
+        '- connection: nope',
+        '  route: "GET /other"',
+        '  source: manual',
+        '  operation: {}',
+        '  response:',
+        '    shape: passthrough',
+        '  auth: inherit',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    expect(() => mappingImport(store, { file: yamlPath })).toThrow(/nope/);
+    expect(store.listMappings()).toHaveLength(0);
+    fs.unlinkSync(yamlPath);
+  });
 });
