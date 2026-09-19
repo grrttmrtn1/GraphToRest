@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import crypto from 'node:crypto';
-import { generateApiKey, type GeneratedApiKey } from '../auth/apiKeys';
+import { generateApiKey, hashSecret, type GeneratedApiKey } from '../auth/apiKeys';
+import { GatewayError } from '../gateway/errors';
 
 export interface ConnectionRecord {
   id: string;
@@ -23,6 +24,23 @@ export interface MappingRecord {
 export interface ApiKeyRecord {
   id: string;
   label: string | null;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  username: string;
+}
+
+const MIN_PASSWORD_LENGTH = 12;
+
+function assertAcceptablePassword(password: string): void {
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+    throw new GatewayError('INVALID_INPUT', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400);
+  }
+}
+
+function hashSessionToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 interface ConnectionRow {
@@ -221,5 +239,67 @@ export class MappingStore {
 
   touchApiKeyLastUsed(id: string): void {
     this.db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(id);
+  }
+
+  createAdminUser(input: { username: string; password: string }): AdminUserRecord {
+    const username = typeof input.username === 'string' ? input.username.trim() : '';
+    if (!username) throw new GatewayError('INVALID_INPUT', 'username is required', 400);
+    assertAcceptablePassword(input.password);
+    const id = crypto.randomUUID();
+    this.db
+      .prepare('INSERT INTO admin_users (id, username, hashed_password) VALUES (?, ?, ?)')
+      .run(id, username, hashSecret(input.password));
+    return { id, username };
+  }
+
+  findAdminUserByUsername(username: string): (AdminUserRecord & { hashedPassword: string }) | null {
+    const row = this.db
+      .prepare('SELECT id, username, hashed_password as hashedPassword FROM admin_users WHERE username = ?')
+      .get(username) as (AdminUserRecord & { hashedPassword: string }) | undefined;
+    return row ?? null;
+  }
+
+  countAdminUsers(): number {
+    return (this.db.prepare('SELECT COUNT(*) as n FROM admin_users').get() as { n: number }).n;
+  }
+
+  /** Replaces the password and revokes every session of that user. Returns false if the user does not exist. */
+  setAdminPassword(username: string, password: string): boolean {
+    assertAcceptablePassword(password);
+    const user = this.findAdminUserByUsername(username);
+    if (!user) return false;
+    this.transaction(() => {
+      this.db.prepare('UPDATE admin_users SET hashed_password = ? WHERE id = ?').run(hashSecret(password), user.id);
+      this.db.prepare('DELETE FROM admin_sessions WHERE admin_user_id = ?').run(user.id);
+    });
+    return true;
+  }
+
+  createAdminSession(adminUserId: string, ttlMs: number): { token: string; expiresAt: string } {
+    this.db.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?').run(new Date().toISOString());
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+    this.db
+      .prepare('INSERT INTO admin_sessions (token_hash, admin_user_id, expires_at) VALUES (?, ?, ?)')
+      .run(hashSessionToken(token), adminUserId, expiresAt);
+    return { token, expiresAt };
+  }
+
+  findAdminSession(token: string): AdminUserRecord | null {
+    const row = this.db
+      .prepare(
+        'SELECT u.id as id, u.username as username, s.expires_at as expiresAt FROM admin_sessions s JOIN admin_users u ON u.id = s.admin_user_id WHERE s.token_hash = ?'
+      )
+      .get(hashSessionToken(token)) as { id: string; username: string; expiresAt: string } | undefined;
+    if (!row) return null;
+    if (Date.parse(row.expiresAt) <= Date.now()) {
+      this.deleteAdminSession(token);
+      return null;
+    }
+    return { id: row.id, username: row.username };
+  }
+
+  deleteAdminSession(token: string): void {
+    this.db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(hashSessionToken(token));
   }
 }
