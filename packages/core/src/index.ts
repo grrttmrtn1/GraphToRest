@@ -30,3 +30,6 @@ export { parseRouteString } from './mappingEngine/routeString';
 export type { MappingYamlEntry, MappingInput } from './mappingEngine/yamlTransform';
 export { parseManagedCredentials } from './auth/oauthClient';
 export type { ManagedCredentials, OAuthGrant } from './auth/oauthClient';
+export { ManagedTokenService } from './auth/managedTokenService';
+export type { AccessTokenProvider, CredentialStatus } from './auth/managedTokenService';
+export { buildAuthContext } from './auth/authContext';
