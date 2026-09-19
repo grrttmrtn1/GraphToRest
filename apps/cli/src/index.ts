@@ -8,6 +8,7 @@ import { mappingGenerate } from './commands/mappingGenerate';
 import { mappingUpdate } from './commands/mappingUpdate';
 import { mappingExport } from './commands/mappingExport';
 import { mappingImport } from './commands/mappingImport';
+import { adminCreate, adminSetPassword } from './commands/adminCreate';
 
 const program = new Command();
 program.name('gtr').option('--db <path>', 'SQLite file path', process.env.DB_PATH ?? './data/graphtorest.db');
@@ -101,6 +102,32 @@ program
   .action((opts) => {
     const store = openEmbeddedStore(program.opts().db);
     console.log(JSON.stringify(apiKeyCreate(store, { label: opts.label }), null, 2));
+  });
+
+function resolvePassword(option: string | undefined): string {
+  const password = option ?? process.env.GTR_ADMIN_PASSWORD;
+  if (!password) throw new Error('Provide a password with --password or the GTR_ADMIN_PASSWORD environment variable');
+  return password;
+}
+
+program
+  .command('admin-create')
+  .requiredOption('--username <name>')
+  .option('--password <password>', 'defaults to $GTR_ADMIN_PASSWORD (12+ characters)')
+  .action((opts) => {
+    const store = openEmbeddedStore(program.opts().db);
+    const user = adminCreate(store, { username: opts.username, password: resolvePassword(opts.password) });
+    console.log(JSON.stringify(user, null, 2));
+  });
+
+program
+  .command('admin-set-password')
+  .requiredOption('--username <name>')
+  .option('--password <password>', 'defaults to $GTR_ADMIN_PASSWORD (12+ characters)')
+  .action((opts) => {
+    const store = openEmbeddedStore(program.opts().db);
+    adminSetPassword(store, { username: opts.username, password: resolvePassword(opts.password) });
+    console.log(JSON.stringify({ username: opts.username, passwordUpdated: true }));
   });
 
 program.parseAsync().catch((err) => {
