@@ -28,3 +28,5 @@ export type { GenerationResult } from './mappingEngine/generateMappings';
 export { mappingToYamlEntry, yamlEntryToMappingInput } from './mappingEngine/yamlTransform';
 export { parseRouteString } from './mappingEngine/routeString';
 export type { MappingYamlEntry, MappingInput } from './mappingEngine/yamlTransform';
+export { parseManagedCredentials } from './auth/oauthClient';
+export type { ManagedCredentials, OAuthGrant } from './auth/oauthClient';
