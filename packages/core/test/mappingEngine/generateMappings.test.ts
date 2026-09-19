@@ -132,4 +132,70 @@ describe('generateAndPersistMappings', () => {
     expect(result.updated[0].source).toBe('generated');
     expect(result.updated[0].operation).toEqual({ query: 'new query' });
   });
+
+  it('does not touch a mapping owned by a different connection at the same route/method (conflict)', async () => {
+    registerAdapter('fake-conflict', () =>
+      fakeAdapter([{ route: '/shared/{id}', method: 'GET', operation: { query: 'from connA' } }])
+    );
+    const connA = store.createConnection({ name: 'connA', adapterType: 'fake-conflict', authMode: 'passthrough' });
+    const connB = store.createConnection({ name: 'connB', adapterType: 'fake-conflict', authMode: 'passthrough' });
+
+    const resultA = await generateAndPersistMappings(store, connA, {
+      connectionId: connA.id,
+      authMode: connA.authMode,
+      config: connA.config,
+    });
+    expect(resultA.created).toHaveLength(1);
+    const connAMappingId = resultA.created[0].id;
+
+    // Re-register the adapter to return a conflicting draft (same route/method, different operation)
+    // for connB's generate call.
+    registerAdapter('fake-conflict', () =>
+      fakeAdapter([{ route: '/shared/{id}', method: 'GET', operation: { query: 'from connB' } }])
+    );
+
+    const resultB = await generateAndPersistMappings(store, connB, {
+      connectionId: connB.id,
+      authMode: connB.authMode,
+      config: connB.config,
+    });
+
+    expect(resultB.created).toEqual([]);
+    expect(resultB.updated).toEqual([]);
+    expect(resultB.skipped).toEqual([]);
+    expect(resultB.conflicts).toEqual([{ route: '/shared/{id}', method: 'GET', operation: { query: 'from connB' } }]);
+    expect(store.getMapping(connAMappingId)?.operation).toEqual({ query: 'from connA' });
+    expect(store.listMappings()).toHaveLength(1);
+  });
+
+  it('does not touch a mapping owned by a different connection even when force is true', async () => {
+    registerAdapter('fake-conflict-force', () =>
+      fakeAdapter([{ route: '/shared2/{id}', method: 'GET', operation: { query: 'from connA' } }])
+    );
+    const connA = store.createConnection({ name: 'connA', adapterType: 'fake-conflict-force', authMode: 'passthrough' });
+    const connB = store.createConnection({ name: 'connB', adapterType: 'fake-conflict-force', authMode: 'passthrough' });
+
+    const resultA = await generateAndPersistMappings(store, connA, {
+      connectionId: connA.id,
+      authMode: connA.authMode,
+      config: connA.config,
+    });
+    const connAMappingId = resultA.created[0].id;
+
+    registerAdapter('fake-conflict-force', () =>
+      fakeAdapter([{ route: '/shared2/{id}', method: 'GET', operation: { query: 'from connB' } }])
+    );
+
+    const resultB = await generateAndPersistMappings(
+      store,
+      connB,
+      { connectionId: connB.id, authMode: connB.authMode, config: connB.config },
+      { force: true }
+    );
+
+    expect(resultB.created).toEqual([]);
+    expect(resultB.updated).toEqual([]);
+    expect(resultB.conflicts).toEqual([{ route: '/shared2/{id}', method: 'GET', operation: { query: 'from connB' } }]);
+    expect(store.getMapping(connAMappingId)?.operation).toEqual({ query: 'from connA' });
+  });
 });

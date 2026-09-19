@@ -6,6 +6,7 @@ export interface GenerationResult {
   created: MappingRecord[];
   updated: MappingRecord[];
   skipped: MappingDraft[];
+  conflicts: MappingDraft[];
 }
 
 export async function generateAndPersistMappings(
@@ -21,9 +22,15 @@ export async function generateAndPersistMappings(
   const created: MappingRecord[] = [];
   const updated: MappingRecord[] = [];
   const skipped: MappingDraft[] = [];
+  const conflicts: MappingDraft[] = [];
 
   for (const draft of drafts) {
     const existing = store.getMappingByRouteAndMethod(draft.method, draft.route);
+
+    if (existing && existing.connectionId !== connection.id) {
+      conflicts.push(draft);
+      continue;
+    }
 
     if (!existing) {
       created.push(
@@ -54,5 +61,5 @@ export async function generateAndPersistMappings(
     updated.push(result as MappingRecord);
   }
 
-  return { created, updated, skipped };
+  return { created, updated, skipped, conflicts };
 }
