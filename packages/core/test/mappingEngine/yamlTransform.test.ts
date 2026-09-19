@@ -86,4 +86,22 @@ describe('yamlEntryToMappingInput', () => {
       )
     ).toThrow(/override/);
   });
+
+  it('throws for a route string missing the HTTP method', () => {
+    expect(() =>
+      yamlEntryToMappingInput(
+        { route: '/users/{id}', connection: 'c1', source: 'manual', operation: {}, response: { shape: 'passthrough' }, auth: 'inherit' },
+        'c1'
+      )
+    ).toThrow(/\/users\/\{id\}/);
+  });
+
+  it('throws for a route string missing the path', () => {
+    expect(() =>
+      yamlEntryToMappingInput(
+        { route: 'GET', connection: 'c1', source: 'manual', operation: {}, response: { shape: 'passthrough' }, auth: 'inherit' },
+        'c1'
+      )
+    ).toThrow(/GET/);
+  });
 });
