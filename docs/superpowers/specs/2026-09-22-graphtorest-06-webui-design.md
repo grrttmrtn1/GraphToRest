@@ -28,7 +28,7 @@ This resolves the parent spec's §12 open item "WebUI framework choice" and the 
 
 - `apps/web` builds (`vite build`) to `apps/web/dist`.
 - `createApp` gains an optional `webRoot: string`. When set, Express serves static files from it, and any `GET` whose path is not under `/api` or `/admin` and matches no file falls back to `index.html`. The fallback must never answer `/api/*` or `/admin/*`.
-- Every response served from `webRoot` (static files and the fallback) carries `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'`. `unsafe-inline` for styles is needed by Swagger UI; scripts stay `'self'` only.
+- Every response served from `webRoot` (static files and the fallback) carries `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`. `unsafe-inline` for styles is needed by Swagger UI; scripts stay `'self'` only. `img-src 'self' data:` is needed because Swagger UI's CSS uses `data:image/svg+xml,...` backgrounds for inline icons (dropdown arrows, the copy-to-clipboard button, the model toggle caret, checkbox items).
 - `apps/server/src/index.ts` passes `webRoot` when `apps/web/dist/index.html` exists and `WEB_ENABLED` is not `false` (config default `true`). Missing assets are not an error — the server runs API/admin-only, as today.
 - Dev: `npm run dev -w @graphtorest/web` runs Vite with a proxy for `/admin` and `/api` to `http://localhost:3000`.
 

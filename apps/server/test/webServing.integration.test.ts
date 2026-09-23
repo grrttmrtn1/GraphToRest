@@ -8,7 +8,7 @@ import { createApp } from '../src/app';
 import { createAdminClient } from './helpers';
 
 const INDEX_HTML = '<!doctype html><html><head><title>gtr-test-index</title></head><body></body></html>';
-const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'";
+const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 let dbPath: string;
 let webRoot: string;
@@ -87,6 +87,26 @@ describe('SPA serving', () => {
       expect(res.status).toBe(404);
       expect(res.text).not.toContain('gtr-test-index');
     }
+  });
+
+  it('returns a plain 404 with the CSP header for a missing hashed asset under /assets/', async () => {
+    const res = await request(buildApp({ webRoot })).get('/assets/app-stale-hash.js');
+    expect(res.status).toBe(404);
+    expect(res.text).not.toContain('gtr-test-index');
+    expect(res.headers['content-security-policy']).toBe(CSP);
+  });
+
+  it('returns a plain 404 with the CSP header for a missing top-level file with an extension', async () => {
+    const res = await request(buildApp({ webRoot })).get('/favicon.ico');
+    expect(res.status).toBe(404);
+    expect(res.text).not.toContain('gtr-test-index');
+    expect(res.headers['content-security-policy']).toBe(CSP);
+  });
+
+  it('still falls back to index.html for a client route whose id segment contains a dot', async () => {
+    const res = await request(buildApp({ webRoot })).get('/connections/abc.def');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('gtr-test-index');
   });
 
   it('serves nothing at / without a webRoot', async () => {

@@ -14,7 +14,7 @@
 
 - Admin session cookie: name `gtr_admin_session`; attributes `HttpOnly; SameSite=Strict; Path=/admin; Max-Age=<ttl seconds>`, plus `Secure` only when `PUBLIC_BASE_URL` starts with `https://`. A cookie login response body is `{ username, expiresAt }` and never contains the token.
 - CSRF (cookie-authenticated, method not GET/HEAD/OPTIONS) → `403 CSRF_REJECTED` unless: `Origin` present and (`new URL(origin).host === Host header` or `new URL(origin).origin === new URL(PUBLIC_BASE_URL).origin`), or `Origin` absent and `Sec-Fetch-Site: same-origin`. Also, a request with a body must be `application/json`, with no exceptions. Bearer-authenticated requests are exempt.
-- SPA CSP header, exactly: `default-src 'self'; style-src 'self' 'unsafe-inline'`.
+- SPA CSP header, exactly: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`.
 - The SPA fallback never answers a path equal to `/api` or `/admin` or starting with `/api/` or `/admin/`. (`/api-keys` is a UI route and *does* get `index.html`.)
 - `request_log` never stores query strings, headers or bodies. `ACTIVITY_RETENTION` defaults to 1000; `GET /admin/activity` `limit` is 1–200, default 50.
 - Error bodies stay `{ "error": { "code", "message", "details" } }` via `GatewayError`/`toErrorResponse`. Sync route handlers may `throw new GatewayError(...)` (the app error handler honors it); async handlers must `try`/`catch` themselves (Express 4).
@@ -2242,7 +2242,7 @@ import { createApp } from '../src/app';
 import { createAdminClient } from './helpers';
 
 const INDEX_HTML = '<!doctype html><html><head><title>gtr-test-index</title></head><body></body></html>';
-const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'";
+const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 let dbPath: string;
 let webRoot: string;
@@ -2412,7 +2412,7 @@ Create `apps/server/src/web.ts`:
 import express, { type Router } from 'express';
 import path from 'node:path';
 
-export const WEB_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'";
+export const WEB_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 function isReservedPath(requestPath: string): boolean {
   return requestPath === '/api' || requestPath.startsWith('/api/') || requestPath === '/admin' || requestPath.startsWith('/admin/');
@@ -5198,7 +5198,7 @@ docker rm -f gtr-plan6
 ```
 
 Expected:
-- `200 default-src 'self'; style-src 'self' 'unsafe-inline'`
+- `200 default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`
 - `200` for the client route
 - the login body `{"username":"admin","expiresAt":"..."}` with no token
 - `/admin/session` returns the same username
