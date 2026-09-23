@@ -11,6 +11,7 @@ import {
   GatewayError,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
+import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
 
 export interface AdminRouterOptions {
   sessionTtlMs?: number;
@@ -20,7 +21,8 @@ export interface AdminRouterOptions {
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
   const router = Router();
-  const requireAdmin = createAdminAuth(mappingStore);
+  const requireAdmin = createAdminAuth(mappingStore, { publicBaseUrl: options.publicBaseUrl });
+  const secureCookies = (options.publicBaseUrl ?? '').startsWith('https://');
 
   const requireManagedAuth = (): ManagedTokenService => {
     if (!options.managedAuth) {
@@ -39,17 +41,31 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   };
 
   router.post('/login', (req, res) => {
-    const { username, password } = req.body ?? {};
+    const { username, password, session } = req.body ?? {};
     if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'username and password required', details: {} } });
       return;
     }
-    const session = loginAdmin(mappingStore, username, password, options.sessionTtlMs);
-    if (!session) {
+    if (session !== undefined && session !== 'cookie') {
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: '"session" must be "cookie" when provided', details: {} } });
+      return;
+    }
+    const result = loginAdmin(mappingStore, username, password, options.sessionTtlMs);
+    if (!result) {
       res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid username or password', details: {} } });
       return;
     }
-    res.json(session);
+    if (session !== 'cookie') {
+      res.json(result);
+      return;
+    }
+    const details = mappingStore.findAdminSessionDetails(result.token);
+    res.setHeader(
+      'Set-Cookie',
+      sessionCookie(result.token, { maxAgeSeconds: (Date.parse(result.expiresAt) - Date.now()) / 1000, secure: secureCookies })
+    );
+    // The token travels only in the HttpOnly cookie, never in a body page scripts could read.
+    res.json({ username: details?.user.username ?? username, expiresAt: result.expiresAt });
   });
 
   router.get('/oauth/callback', async (req, res) => {
@@ -74,8 +90,15 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   // Everything below this line requires an admin session.
   router.use(requireAdmin);
 
-  router.post('/logout', (_req, res) => {
+  router.get('/session', (_req, res) => {
+    res.json({ username: res.locals.adminUser.username as string, expiresAt: res.locals.adminSessionExpiresAt as string });
+  });
+
+  router.post('/logout', (req, res) => {
     mappingStore.deleteAdminSession(res.locals.adminToken as string);
+    if (parseCookies(req.header('cookie'))[ADMIN_SESSION_COOKIE] !== undefined) {
+      res.setHeader('Set-Cookie', sessionCookie('', { maxAgeSeconds: 0, secure: secureCookies }));
+    }
     res.status(204).end();
   });
 
