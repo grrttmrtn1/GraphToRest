@@ -18,6 +18,22 @@ export interface AccessTokenProvider {
   getAccessToken(connection: ConnectionRecord): Promise<string>;
 }
 
+/**
+ * A GatewayError thrown by completeAuthorization after its state resolved to a known connection (e.g. the vendor
+ * rejected the exchange). Carries the connection id as a plain own property — not in `details`, so it never leaks
+ * into a JSON error body via toErrorResponse — so a web-UI redirect can target that connection's page instead of
+ * the generic connections list.
+ */
+export type AuthorizationCallbackError = GatewayError & { connectionId?: string };
+
+/** Reads the connection id attached to an AuthorizationCallbackError, or null if the error has none (e.g. an unknown/expired state). */
+export function connectionIdFromAuthorizationError(err: unknown): string | null {
+  if (err instanceof GatewayError && typeof (err as AuthorizationCallbackError).connectionId === 'string') {
+    return (err as AuthorizationCallbackError).connectionId as string;
+  }
+  return null;
+}
+
 export type CredentialStatus = { configured: false } | { configured: true; grant: OAuthGrant; hasRefreshToken: boolean };
 
 interface PendingAuthorization {
@@ -123,26 +139,32 @@ export class ManagedTokenService implements AccessTokenProvider {
     if (!connection || !credentials || credentials.grant !== 'authorization_code') {
       throw new GatewayError('INVALID_STATE', 'Unknown or expired authorization state', 400);
     }
-    const generation = this.generationOf(connection.id);
-    const response = await exchangeAuthorizationCode(connection.adapterType, credentials, {
-      code,
-      redirectUri: pending.redirectUri,
-      codeVerifier: pending.codeVerifier,
-    });
-    if (!response.refreshToken) {
-      throw new GatewayError(
-        'VENDOR_AUTH_FAILED',
-        'The vendor did not return a refresh token; make sure offline access is granted (for Microsoft, the offline_access scope)',
-        502
-      );
+    try {
+      const generation = this.generationOf(connection.id);
+      const response = await exchangeAuthorizationCode(connection.adapterType, credentials, {
+        code,
+        redirectUri: pending.redirectUri,
+        codeVerifier: pending.codeVerifier,
+      });
+      if (!response.refreshToken) {
+        throw new GatewayError(
+          'VENDOR_AUTH_FAILED',
+          'The vendor did not return a refresh token; make sure offline access is granted (for Microsoft, the offline_access scope)',
+          502
+        );
+      }
+      if (this.generationOf(connection.id) !== generation) {
+        throw new GatewayError('INVALID_STATE', 'Credentials changed during authorization; start authorization again', 400);
+      }
+      this.writeCredentials(connection.id, { ...credentials, refreshToken: response.refreshToken });
+      this.invalidateInFlight(connection.id); // a refresh started before this must not overwrite the new token or cache a stale access token
+      this.remember(connection.id, response);
+      return { connectionId: connection.id };
+    } catch (err) {
+      // The state resolved to this connection before the failure, so the caller (e.g. a web-UI redirect) can target it.
+      if (err instanceof GatewayError) (err as AuthorizationCallbackError).connectionId = connection.id;
+      throw err;
     }
-    if (this.generationOf(connection.id) !== generation) {
-      throw new GatewayError('INVALID_STATE', 'Credentials changed during authorization; start authorization again', 400);
-    }
-    this.writeCredentials(connection.id, { ...credentials, refreshToken: response.refreshToken });
-    this.invalidateInFlight(connection.id); // a refresh started before this must not overwrite the new token or cache a stale access token
-    this.remember(connection.id, response);
-    return { connectionId: connection.id };
   }
 
   private async fetchToken(connection: ConnectionRecord): Promise<string> {

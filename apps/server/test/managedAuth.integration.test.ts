@@ -297,6 +297,20 @@ describe('OAuth callback with the web UI enabled', () => {
     expect(callback.headers.location).toBe(`/connections/${connectionId}?oauth=success`);
   });
 
+  it('redirects a token-exchange failure to the connection page, not the generic list', async () => {
+    const { connectionId, state } = await startAuthorization();
+    // Vendor responds 200 but omits refresh_token -> completeAuthorization throws VENDOR_AUTH_FAILED after resolving the connection.
+    nock(LOGIN).post(TOKEN_PATH).reply(200, { access_token: 'delegated-token', expires_in: 3600 });
+    const callback = await request(webApp).get(`/admin/oauth/callback?code=auth-code-1&state=${state}`);
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).toBe(`/connections/${connectionId}?oauth=error&code=VENDOR_AUTH_FAILED`);
+
+    // The state was single-use, so a replay must still fail (as an unknown state, generic target).
+    const replay = await request(webApp).get(`/admin/oauth/callback?code=auth-code-1&state=${state}`);
+    expect(replay.status).toBe(302);
+    expect(replay.headers.location).toBe('/connections?oauth=error&code=INVALID_STATE');
+  });
+
   it('redirects a vendor error to the connection page and consumes the state', async () => {
     const { connectionId, state } = await startAuthorization();
     const denied = await request(webApp).get(`/admin/oauth/callback?error=access_denied&state=${state}`);

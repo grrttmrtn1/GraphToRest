@@ -42,6 +42,6 @@ export { parseMappingFields } from './mappingEngine/mappingFields';
 export type { MappingFields } from './mappingEngine/mappingFields';
 export { parseManagedCredentials } from './auth/oauthClient';
 export type { ManagedCredentials, OAuthGrant } from './auth/oauthClient';
-export { ManagedTokenService } from './auth/managedTokenService';
-export type { AccessTokenProvider, CredentialStatus } from './auth/managedTokenService';
+export { ManagedTokenService, connectionIdFromAuthorizationError } from './auth/managedTokenService';
+export type { AccessTokenProvider, CredentialStatus, AuthorizationCallbackError } from './auth/managedTokenService';
 export { buildAuthContext } from './auth/authContext';

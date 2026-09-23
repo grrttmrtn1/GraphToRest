@@ -9,6 +9,7 @@ import {
   loginAdmin,
   toErrorResponse,
   GatewayError,
+  connectionIdFromAuthorizationError,
   listAdapterTypes,
   exportMappingsYaml,
   importMappingsYaml,
@@ -95,7 +96,8 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       const { status, body } = toErrorResponse(err);
       if (options.webUiRedirects) {
         // Only the error code goes into the URL — never vendor-supplied text.
-        const target = connectionId ? `/connections/${encodeURIComponent(connectionId)}` : '/connections';
+        const failedConnectionId = connectionId ?? connectionIdFromAuthorizationError(err);
+        const target = failedConnectionId ? `/connections/${encodeURIComponent(failedConnectionId)}` : '/connections';
         res.redirect(302, `${target}?oauth=error&code=${encodeURIComponent(body.error.code)}`);
         return;
       }

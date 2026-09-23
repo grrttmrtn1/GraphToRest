@@ -159,6 +159,20 @@ describe('authorization-code flow', () => {
     await expect(service.completeAuthorization(state, 'code-1')).rejects.toMatchObject({ code: 'VENDOR_AUTH_FAILED' });
   });
 
+  it('attaches the connection id to the thrown error once the state has resolved to a connection, so a web-UI redirect can target it', async () => {
+    service.saveCredentials(connection, AC_INPUT);
+    const state = stateFrom(service.beginAuthorization(connection, REDIRECT));
+    nock(LOGIN).post(TOKEN_PATH).reply(200, { access_token: 'at', expires_in: 3600 }); // no refresh_token -> VENDOR_AUTH_FAILED
+    await expect(service.completeAuthorization(state, 'code-1')).rejects.toMatchObject({
+      code: 'VENDOR_AUTH_FAILED',
+      connectionId: connection.id,
+    });
+  });
+
+  it('does not attach a connection id when the state itself is unknown or expired', async () => {
+    await expect(service.completeAuthorization('made-up', 'code-1')).rejects.not.toHaveProperty('connectionId');
+  });
+
   it('refreshes with the stored token and persists a rotated refresh token', async () => {
     service.saveCredentials(connection, { ...AC_INPUT, refreshToken: 'rt-1' });
     nock(LOGIN).post(TOKEN_PATH, { grant_type: 'refresh_token', refresh_token: 'rt-1', client_id: 'cid', client_secret: 'super-secret-value' })
