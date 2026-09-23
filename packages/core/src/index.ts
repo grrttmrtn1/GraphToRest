@@ -26,7 +26,7 @@ export { CredentialCipher } from './auth/credentialCipher';
 
 export { matchRoute } from './gateway/matchRoute';
 export { GatewayEngine } from './gateway/GatewayEngine';
-export type { ResolvedRequest } from './gateway/GatewayEngine';
+export type { ResolvedRequest, GatewayHooks } from './gateway/GatewayEngine';
 export { GatewayError, toErrorResponse } from './gateway/errors';
 export type { ErrorResponse } from './gateway/errors';
 

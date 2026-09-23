@@ -63,6 +63,23 @@ export class ManagedTokenService implements AccessTokenProvider {
     return credentials ? statusOf(credentials) : { configured: false };
   }
 
+  /** Removes stored credentials; cached/in-flight tokens and pending authorizations for the connection are discarded. */
+  clearCredentials(connectionId: string): void {
+    this.store.setConnectionCredentials(connectionId, null);
+    this.invalidateInFlight(connectionId);
+    for (const [state, entry] of this.pending) {
+      if (entry.connectionId === connectionId) this.pending.delete(state);
+    }
+  }
+
+  /** Consumes a pending authorization the vendor rejected. Returns its connection id, or null if unknown or expired. */
+  abandonAuthorization(state: string): string | null {
+    const pending = this.pending.get(state);
+    this.pending.delete(state);
+    if (!pending || pending.expiresAt <= this.now()) return null;
+    return pending.connectionId;
+  }
+
   getAccessToken(connection: ConnectionRecord): Promise<string> {
     const cached = this.tokens.get(connection.id);
     if (cached && cached.expiresAt - REFRESH_SKEW_MS > this.now()) return Promise.resolve(cached.accessToken);

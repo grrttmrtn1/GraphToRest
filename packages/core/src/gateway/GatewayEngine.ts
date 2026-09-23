@@ -11,6 +11,11 @@ export interface ResolvedRequest {
   params: Record<string, string>;
 }
 
+export interface GatewayHooks {
+  /** Called once the request has been matched to a mapping, before anything that can fail. */
+  onMatch?: (mapping: MappingRecord) => void;
+}
+
 export class GatewayEngine {
   constructor(private mappingStore: MappingStore, private tokenProvider?: AccessTokenProvider) {}
 
@@ -27,13 +32,15 @@ export class GatewayEngine {
     method: string,
     path: string,
     incomingAuth: { vendorToken?: string } = {},
-    request: RequestContext = {}
+    request: RequestContext = {},
+    hooks: GatewayHooks = {}
   ): Promise<unknown> {
     const resolved = this.resolve(method, path);
     if (!resolved) {
       throw new GatewayError('NOT_FOUND', `No mapping for ${method} ${path}`, 404);
     }
     const { mapping, params } = resolved;
+    hooks.onMatch?.(mapping);
     const connection = this.mappingStore.getConnection(mapping.connectionId);
     if (!connection) {
       throw new GatewayError('CONNECTION_NOT_FOUND', `Connection ${mapping.connectionId} not found`, 500);
