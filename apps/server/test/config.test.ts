@@ -11,6 +11,7 @@ describe('loadConfig', () => {
       adminEnabled: true,
       publicBaseUrl: 'http://localhost:3000',
       activityRetention: 1000,
+      webEnabled: true,
     });
     expect(config.credentialEncryptionKey).toBeUndefined();
   });
@@ -24,6 +25,7 @@ describe('loadConfig', () => {
       CREDENTIAL_ENCRYPTION_KEY: 'ab'.repeat(32),
       PUBLIC_BASE_URL: 'https://gtr.example.com/',
       ACTIVITY_RETENTION: '250',
+      WEB_ENABLED: 'false',
     });
     expect(config).toEqual({
       port: 8080,
@@ -33,6 +35,7 @@ describe('loadConfig', () => {
       credentialEncryptionKey: 'ab'.repeat(32),
       publicBaseUrl: 'https://gtr.example.com',
       activityRetention: 250,
+      webEnabled: false,
     });
   });
 

@@ -20,6 +20,7 @@ export interface AdminRouterOptions {
   sessionTtlMs?: number;
   managedAuth?: ManagedTokenService;
   publicBaseUrl?: string;
+  webUiRedirects?: boolean;
 }
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
@@ -72,20 +73,32 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   });
 
   router.get('/oauth/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    let connectionId: string | null = null;
     try {
       const managedAuth = requireManagedAuth();
-      const { code, state, error } = req.query;
       if (typeof error === 'string') {
+        connectionId = typeof state === 'string' ? managedAuth.abandonAuthorization(state) : null;
         throw new GatewayError('AUTHORIZATION_DENIED', `The vendor reported an authorization error: ${error.slice(0, 100)}`, 400);
       }
       if (typeof code !== 'string' || typeof state !== 'string') {
         throw new GatewayError('INVALID_INPUT', '"code" and "state" query parameters are required', 400);
       }
-      const { connectionId } = await managedAuth.completeAuthorization(state, code);
+      ({ connectionId } = await managedAuth.completeAuthorization(state, code));
+      if (options.webUiRedirects) {
+        res.redirect(302, `/connections/${encodeURIComponent(connectionId)}?oauth=success`);
+        return;
+      }
       res.json({ status: 'authorized', connectionId });
     } catch (err) {
       if (!(err instanceof GatewayError)) console.error(err);
       const { status, body } = toErrorResponse(err);
+      if (options.webUiRedirects) {
+        // Only the error code goes into the URL — never vendor-supplied text.
+        const target = connectionId ? `/connections/${encodeURIComponent(connectionId)}` : '/connections';
+        res.redirect(302, `${target}?oauth=error&code=${encodeURIComponent(body.error.code)}`);
+        return;
+      }
       res.status(status).json(body);
     }
   });

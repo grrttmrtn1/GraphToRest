@@ -6,6 +6,7 @@ export interface ServerConfig {
   credentialEncryptionKey?: string;
   publicBaseUrl: string;
   activityRetention: number;
+  webEnabled: boolean;
 }
 
 function parseActivityRetention(value: string | undefined): number {
@@ -27,5 +28,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     credentialEncryptionKey: env.CREDENTIAL_ENCRYPTION_KEY || undefined,
     publicBaseUrl: (env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
     activityRetention: parseActivityRetention(env.ACTIVITY_RETENTION),
+    webEnabled: env.WEB_ENABLED !== 'false',
   };
 }

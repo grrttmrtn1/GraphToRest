@@ -27,7 +27,7 @@ let app: ReturnType<typeof createApp>;
 let store: MappingStore;
 let admin: AdminClient;
 
-function buildApp(withManagedAuth: boolean, options: { publicBaseUrl?: string } = { publicBaseUrl: BASE_URL }) {
+function buildApp(withManagedAuth: boolean, options: { publicBaseUrl?: string; webRoot?: string } = { publicBaseUrl: BASE_URL }) {
   const managedAuth = withManagedAuth ? new ManagedTokenService(store, new CredentialCipher('00'.repeat(32))) : undefined;
   return createApp({
     mappingStore: store,
@@ -37,6 +37,7 @@ function buildApp(withManagedAuth: boolean, options: { publicBaseUrl?: string } 
     adminEnabled: true,
     managedAuth,
     publicBaseUrl: options.publicBaseUrl,
+    webRoot: options.webRoot,
   });
 }
 
@@ -258,5 +259,62 @@ describe('managed auth: authorization code', () => {
     expect(res.body.error.message).toContain('PUBLIC_BASE_URL');
     expect(res.body.authorizationUrl).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toContain('evil.example');
+  });
+});
+
+describe('OAuth callback with the web UI enabled', () => {
+  const AC_BODY = { ...CC_BODY, grant: 'authorization_code' };
+  let webRoot: string;
+  let webApp: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    webRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'graphtorest-webroot-'));
+    fs.writeFileSync(path.join(webRoot, 'index.html'), '<!doctype html><title>ui</title>');
+    webApp = buildApp(true, { publicBaseUrl: BASE_URL, webRoot });
+  });
+
+  afterEach(() => {
+    fs.rmSync(webRoot, { recursive: true, force: true });
+  });
+
+  /**
+   * Runs the whole flow on webApp: each buildApp() owns its own ManagedTokenService, so the pending state from
+   * oauth/start only exists in the app that issued it. The admin session lives in the shared store, so admin.token works here.
+   */
+  async function startAuthorization() {
+    const { connectionId } = await seedManagedGraphConnection();
+    const auth = { Authorization: `Bearer ${admin.token}` };
+    await request(webApp).put(`/admin/connections/${connectionId}/credentials`).set(auth).send(AC_BODY);
+    const start = await request(webApp).post(`/admin/connections/${connectionId}/oauth/start`).set(auth).send({});
+    return { connectionId, state: new URL(start.body.authorizationUrl).searchParams.get('state')! };
+  }
+
+  it('redirects to the connection page on success', async () => {
+    const { connectionId, state } = await startAuthorization();
+    nock(LOGIN).post(TOKEN_PATH).reply(200, { access_token: 'delegated-token', refresh_token: 'rt-1', expires_in: 3600 });
+    const callback = await request(webApp).get(`/admin/oauth/callback?code=auth-code-1&state=${state}`);
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).toBe(`/connections/${connectionId}?oauth=success`);
+  });
+
+  it('redirects a vendor error to the connection page and consumes the state', async () => {
+    const { connectionId, state } = await startAuthorization();
+    const denied = await request(webApp).get(`/admin/oauth/callback?error=access_denied&state=${state}`);
+    expect(denied.status).toBe(302);
+    expect(denied.headers.location).toBe(`/connections/${connectionId}?oauth=error&code=AUTHORIZATION_DENIED`);
+
+    const replay = await request(webApp).get(`/admin/oauth/callback?code=x&state=${state}`);
+    expect(replay.headers.location).toBe('/connections?oauth=error&code=INVALID_STATE');
+  });
+
+  it('redirects to the connections list when the state is unknown', async () => {
+    const res = await request(webApp).get('/admin/oauth/callback?code=x&state=made-up');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/connections?oauth=error&code=INVALID_STATE');
+  });
+
+  it('keeps the vendor error text out of the redirect', async () => {
+    const res = await request(webApp).get('/admin/oauth/callback?error=secret_vendor_text&state=nope');
+    expect(res.headers.location).toBe('/connections?oauth=error&code=AUTHORIZATION_DENIED');
   });
 });

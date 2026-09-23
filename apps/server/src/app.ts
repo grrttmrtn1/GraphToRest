@@ -5,6 +5,7 @@ import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createActivityLogger, DEFAULT_ACTIVITY_RETENTION } from './middleware/activityLog';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
+import { createWebHandler } from './web';
 
 export interface AppDeps {
   mappingStore: MappingStore;
@@ -16,6 +17,7 @@ export interface AppDeps {
   managedAuth?: ManagedTokenService;
   publicBaseUrl?: string;
   activityRetention?: number;
+  webRoot?: string;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -43,9 +45,20 @@ export function createApp(deps: AppDeps): Express {
         sessionTtlMs: deps.adminSessionTtlMs,
         managedAuth: deps.managedAuth,
         publicBaseUrl: deps.publicBaseUrl,
+        webUiRedirects: deps.webRoot !== undefined,
       })
     );
   }
+
+  if (deps.webRoot) {
+    app.use(createWebHandler(deps.webRoot));
+  }
+
+  // A plain 404 for anything unmatched above (e.g. `/` with no webRoot configured), so Express's default
+  // finalhandler page — which sets its own Content-Security-Policy header — never answers a request.
+  app.use((_req, res) => {
+    res.status(404).end();
+  });
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof GatewayError) {
