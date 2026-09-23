@@ -18,7 +18,8 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
-  app.use(express.json());
+  // 1 MB so the web UI can import a mappings YAML file through POST /admin/mappings/import.
+  app.use(express.json({ limit: '1mb' }));
 
   if (deps.apiEnabled) {
     app.get('/api/openapi.json', (_req, res) => {

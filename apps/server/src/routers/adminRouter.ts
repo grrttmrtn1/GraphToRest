@@ -9,6 +9,9 @@ import {
   loginAdmin,
   toErrorResponse,
   GatewayError,
+  listAdapterTypes,
+  exportMappingsYaml,
+  importMappingsYaml,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -94,6 +97,10 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     res.json({ username: res.locals.adminUser.username as string, expiresAt: res.locals.adminSessionExpiresAt as string });
   });
 
+  router.get('/adapters', (_req, res) => {
+    res.json(listAdapterTypes());
+  });
+
   router.post('/logout', (req, res) => {
     mappingStore.deleteAdminSession(res.locals.adminToken as string);
     if (parseCookies(req.header('cookie'))[ADMIN_SESSION_COOKIE] !== undefined) {
@@ -168,6 +175,21 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     res.json(mappingStore.listConnections());
   });
 
+  router.delete('/connections/:id', (req, res) => {
+    const connectionId = req.params.id;
+    if (!mappingStore.getConnection(connectionId)) throw new GatewayError('NOT_FOUND', 'Connection not found', 404);
+    options.managedAuth?.clearCredentials(connectionId); // drop cached tokens and pending authorizations first
+    mappingStore.deleteConnection(connectionId);
+    res.status(204).end();
+  });
+
+  router.delete('/connections/:id/credentials', (req, res) => {
+    const managedAuth = requireManagedAuth();
+    const connection = findManagedConnection(req.params.id);
+    managedAuth.clearCredentials(connection.id);
+    res.status(204).end();
+  });
+
   router.post('/connections/:id/mappings/generate', async (req, res) => {
     const connection = mappingStore.getConnection(req.params.id);
     if (!connection) {
@@ -229,6 +251,26 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     res.json(mappingStore.listMappings());
   });
 
+  router.get('/mappings/export', (req, res) => {
+    const { connectionId } = req.query;
+    if (connectionId !== undefined && typeof connectionId !== 'string') {
+      throw new GatewayError('INVALID_INPUT', '"connectionId" must be a single value', 400);
+    }
+    res.type('text/yaml').send(exportMappingsYaml(mappingStore, { connectionId }));
+  });
+
+  router.post('/mappings/import', (req, res) => {
+    const { yaml } = req.body ?? {};
+    if (typeof yaml !== 'string') throw new GatewayError('INVALID_INPUT', '"yaml" must be a string', 400);
+    const { records, warnings } = importMappingsYaml(mappingStore, yaml);
+    res.json({ imported: records.length, warnings });
+  });
+
+  router.delete('/mappings/:id', (req, res) => {
+    if (!mappingStore.deleteMapping(req.params.id)) throw new GatewayError('NOT_FOUND', 'Mapping not found', 404);
+    res.status(204).end();
+  });
+
   router.patch('/mappings/:id', (req, res) => {
     const fields = parseMappingFields(req.body ?? {});
     if (
@@ -268,6 +310,15 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     const { label } = req.body ?? {};
     const created = mappingStore.createApiKey({ label });
     res.status(201).json({ id: created.id, plaintext: created.plaintext, label: created.label });
+  });
+
+  router.get('/api-keys', (_req, res) => {
+    res.json(mappingStore.listApiKeys());
+  });
+
+  router.delete('/api-keys/:id', (req, res) => {
+    if (!mappingStore.deleteApiKey(req.params.id)) throw new GatewayError('NOT_FOUND', 'API key not found', 404);
+    res.status(204).end();
   });
 
   return router;
