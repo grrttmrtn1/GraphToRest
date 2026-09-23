@@ -46,4 +46,18 @@ export const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS request_log (
+    id INTEGER PRIMARY KEY,
+    ts TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    error_code TEXT,
+    api_key_id TEXT,
+    connection_id TEXT,
+    mapping_id TEXT
+  );
+  `,
 ];

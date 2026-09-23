@@ -7,7 +7,15 @@ export { registerDefaultAdapters } from './adapters/defaults';
 
 export { openDb } from './storage/db';
 export { MappingStore } from './storage/MappingStore';
-export type { ConnectionRecord, MappingRecord, ApiKeyRecord, AdminUserRecord } from './storage/MappingStore';
+export type {
+  ConnectionRecord,
+  MappingRecord,
+  ApiKeyRecord,
+  AdminUserRecord,
+  ApiKeySummary,
+  RequestLogInput,
+  RequestLogRecord,
+} from './storage/MappingStore';
 
 export { generateApiKey, hashSecret, verifySecret, parsePresentedKey } from './auth/apiKeys';
 export type { GeneratedApiKey } from './auth/apiKeys';

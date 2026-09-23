@@ -21,13 +21,13 @@ afterEach(() => {
 });
 
 describe('openDb', () => {
-  it('creates all five tables from a fresh file', () => {
+  it('creates all six tables from a fresh file', () => {
     const db = openDb(tmpDbPath());
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all()
       .map((row: any) => row.name);
-    expect(tables).toEqual(['admin_sessions', 'admin_users', 'api_keys', 'connections', 'mappings']);
+    expect(tables).toEqual(['admin_sessions', 'admin_users', 'api_keys', 'connections', 'mappings', 'request_log']);
     db.close();
   });
 
@@ -45,7 +45,7 @@ describe('openDb', () => {
     openDb(file).close();
     const db = openDb(file);
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
-    expect(tables.length).toBe(5);
+    expect(tables.length).toBe(6);
     db.close();
   });
 

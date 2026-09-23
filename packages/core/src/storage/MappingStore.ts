@@ -31,6 +31,40 @@ export interface AdminUserRecord {
   username: string;
 }
 
+export interface ApiKeySummary {
+  id: string;
+  label: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface RequestLogInput {
+  ts: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  errorCode?: string | null;
+  apiKeyId?: string | null;
+  connectionId?: string | null;
+  mappingId?: string | null;
+}
+
+export interface RequestLogRecord {
+  id: number;
+  ts: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  errorCode: string | null;
+  apiKeyId: string | null;
+  apiKeyLabel: string | null;
+  connectionId: string | null;
+  connectionName: string | null;
+  mappingId: string | null;
+}
+
 const MIN_PASSWORD_LENGTH = 12;
 
 function assertAcceptablePassword(password: string): void {
@@ -135,6 +169,14 @@ export class MappingStore {
     return row?.credentials ?? null;
   }
 
+  /** Deletes a connection and its mappings in one transaction (stored credentials live on the connection row). Returns false if it does not exist. */
+  deleteConnection(id: string): boolean {
+    return this.transaction(() => {
+      this.db.prepare('DELETE FROM mappings WHERE connection_id = ?').run(id);
+      return this.db.prepare('DELETE FROM connections WHERE id = ?').run(id).changes > 0;
+    });
+  }
+
   createMapping(input: {
     connectionId: string;
     route: string;
@@ -221,6 +263,10 @@ export class MappingStore {
     return next;
   }
 
+  deleteMapping(id: string): boolean {
+    return this.db.prepare('DELETE FROM mappings WHERE id = ?').run(id).changes > 0;
+  }
+
   createApiKey(input: { label?: string }): GeneratedApiKey & ApiKeyRecord {
     const generated = generateApiKey();
     const label = input.label ?? null;
@@ -239,6 +285,17 @@ export class MappingStore {
 
   touchApiKeyLastUsed(id: string): void {
     this.db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(id);
+  }
+
+  /** Key metadata only — never the hash. */
+  listApiKeys(): ApiKeySummary[] {
+    return this.db
+      .prepare('SELECT id, label, created_at as createdAt, last_used_at as lastUsedAt FROM api_keys ORDER BY created_at, id')
+      .all() as ApiKeySummary[];
+  }
+
+  deleteApiKey(id: string): boolean {
+    return this.db.prepare('DELETE FROM api_keys WHERE id = ?').run(id).changes > 0;
   }
 
   createAdminUser(input: { username: string; password: string }): AdminUserRecord {
@@ -285,7 +342,7 @@ export class MappingStore {
     return { token, expiresAt };
   }
 
-  findAdminSession(token: string): AdminUserRecord | null {
+  findAdminSessionDetails(token: string): { user: AdminUserRecord; expiresAt: string } | null {
     const row = this.db
       .prepare(
         'SELECT u.id as id, u.username as username, s.expires_at as expiresAt FROM admin_sessions s JOIN admin_users u ON u.id = s.admin_user_id WHERE s.token_hash = ?'
@@ -296,10 +353,56 @@ export class MappingStore {
       this.deleteAdminSession(token);
       return null;
     }
-    return { id: row.id, username: row.username };
+    return { user: { id: row.id, username: row.username }, expiresAt: row.expiresAt };
+  }
+
+  findAdminSession(token: string): AdminUserRecord | null {
+    return this.findAdminSessionDetails(token)?.user ?? null;
   }
 
   deleteAdminSession(token: string): void {
     this.db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(hashSessionToken(token));
+  }
+
+  /** Appends one request-log row, then prunes everything but the newest `retention` rows. */
+  recordRequest(entry: RequestLogInput, retention: number): void {
+    if (!Number.isInteger(retention) || retention < 1) throw new Error('Activity retention must be a positive integer');
+    this.transaction(() => {
+      const { lastInsertRowid } = this.db
+        .prepare(
+          'INSERT INTO request_log (ts, method, path, status, duration_ms, error_code, api_key_id, connection_id, mapping_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .run(
+          entry.ts,
+          entry.method,
+          entry.path,
+          entry.status,
+          entry.durationMs,
+          entry.errorCode ?? null,
+          entry.apiKeyId ?? null,
+          entry.connectionId ?? null,
+          entry.mappingId ?? null
+        );
+      this.db.prepare('DELETE FROM request_log WHERE id <= ?').run(Number(lastInsertRowid) - retention);
+    });
+  }
+
+  /** Newest-first page of the request log; `before` is an exclusive upper bound on `id`. */
+  listRequests(options: { limit: number; before?: number }): RequestLogRecord[] {
+    const where = options.before !== undefined ? 'WHERE r.id < ?' : '';
+    const params = options.before !== undefined ? [options.before, options.limit] : [options.limit];
+    return this.db
+      .prepare(
+        `SELECT r.id, r.ts, r.method, r.path, r.status, r.duration_ms as durationMs, r.error_code as errorCode,
+                r.api_key_id as apiKeyId, k.label as apiKeyLabel, r.connection_id as connectionId, c.name as connectionName,
+                r.mapping_id as mappingId
+         FROM request_log r
+         LEFT JOIN api_keys k ON k.id = r.api_key_id
+         LEFT JOIN connections c ON c.id = r.connection_id
+         ${where}
+         ORDER BY r.id DESC
+         LIMIT ?`
+      )
+      .all(...params) as RequestLogRecord[];
   }
 }
