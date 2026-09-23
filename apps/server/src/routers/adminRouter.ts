@@ -101,6 +101,19 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     res.json(listAdapterTypes());
   });
 
+  router.get('/activity', (req, res) => {
+    const limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      throw new GatewayError('INVALID_INPUT', '"limit" must be an integer from 1 to 200', 400);
+    }
+    const before = req.query.before === undefined ? undefined : Number(req.query.before);
+    if (before !== undefined && (!Number.isInteger(before) || before < 1)) {
+      throw new GatewayError('INVALID_INPUT', '"before" must be a positive integer', 400);
+    }
+    const items = mappingStore.listRequests({ limit, before });
+    res.json({ items, nextBefore: items.length === limit ? items[items.length - 1].id : null });
+  });
+
   router.post('/logout', (req, res) => {
     mappingStore.deleteAdminSession(res.locals.adminToken as string);
     if (parseCookies(req.header('cookie'))[ADMIN_SESSION_COOKIE] !== undefined) {

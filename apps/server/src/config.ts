@@ -5,6 +5,16 @@ export interface ServerConfig {
   adminEnabled: boolean;
   credentialEncryptionKey?: string;
   publicBaseUrl: string;
+  activityRetention: number;
+}
+
+function parseActivityRetention(value: string | undefined): number {
+  if (value === undefined || value === '') return 1000;
+  const retention = Number(value);
+  if (!Number.isInteger(retention) || retention < 1) {
+    throw new Error(`ACTIVITY_RETENTION must be a positive integer, got "${value}"`);
+  }
+  return retention;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -16,5 +26,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     adminEnabled: env.ADMIN_ENABLED !== 'false',
     credentialEncryptionKey: env.CREDENTIAL_ENCRYPTION_KEY || undefined,
     publicBaseUrl: (env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
+    activityRetention: parseActivityRetention(env.ACTIVITY_RETENTION),
   };
 }

@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { toErrorResponse, GatewayError, type MappingStore, type GatewayEngine, type OpenApiGenerator, type ManagedTokenService } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
+import { createActivityLogger, DEFAULT_ACTIVITY_RETENTION } from './middleware/activityLog';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
 
@@ -14,6 +15,7 @@ export interface AppDeps {
   adminSessionTtlMs?: number;
   managedAuth?: ManagedTokenService;
   publicBaseUrl?: string;
+  activityRetention?: number;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -26,7 +28,12 @@ export function createApp(deps: AppDeps): Express {
       res.json(deps.openApiGenerator.generate(deps.mappingStore.listMappings()));
     });
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/openapi.json' } }));
-    app.use('/api', createApiKeyAuth(deps.mappingStore), createApiRouter(deps.gatewayEngine));
+    app.use(
+      '/api',
+      createActivityLogger(deps.mappingStore, deps.activityRetention ?? DEFAULT_ACTIVITY_RETENTION),
+      createApiKeyAuth(deps.mappingStore),
+      createApiRouter(deps.gatewayEngine)
+    );
   }
 
   if (deps.adminEnabled) {

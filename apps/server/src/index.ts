@@ -28,6 +28,7 @@ const app = createApp({
   adminEnabled: config.adminEnabled,
   managedAuth,
   publicBaseUrl: config.publicBaseUrl,
+  activityRetention: config.activityRetention,
 });
 
 if (!managedAuth) {
