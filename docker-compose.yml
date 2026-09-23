@@ -15,8 +15,12 @@ services:
       # 32-byte key, 64 hex chars or base64 (e.g. `openssl rand -hex 32`). Required for authMode "managed".
       # Keep it out of the DB volume; losing it makes stored vendor credentials unreadable.
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
-      # Externally reachable URL of this server; the OAuth redirect URI is <PUBLIC_BASE_URL>/admin/oauth/callback.
+      # Externally reachable URL of this server — set it to the address you type into the browser.
+      # The OAuth redirect URI is <PUBLIC_BASE_URL>/admin/oauth/callback, the admin cookie is marked Secure
+      # when it is https, and the web UI's CSRF check accepts this origin (plus the request's own Host).
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      # Newest request-log rows kept for the web UI's Activity view.
+      ACTIVITY_RETENTION: ${ACTIVITY_RETENTION:-1000}
 
 volumes:
   graphtorest-data:
