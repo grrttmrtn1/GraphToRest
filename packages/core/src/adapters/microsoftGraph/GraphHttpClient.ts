@@ -1,5 +1,6 @@
 import { Client } from '@microsoft/microsoft-graph-client';
 import { GatewayError } from '../../gateway/errors';
+import { redactVendorText } from '../../gateway/redact';
 import { encodeCursor, decodeCursor, type NormalizedRequestQuery } from './odata';
 
 export interface GraphListResult {
@@ -94,9 +95,15 @@ function toGatewayError(err: unknown): GatewayError {
   if (typeof graphErr?.statusCode === 'number') {
     return new GatewayError(
       graphErr.code ?? 'VENDOR_ERROR',
-      graphErr.message ?? 'Microsoft Graph request failed',
+      redactVendorText(graphErr.message ?? 'Microsoft Graph request failed'),
       graphErr.statusCode > 0 ? graphErr.statusCode : 502,
-      { vendor: 'microsoft-graph', body: graphErr.body }
+      {
+        vendor: 'microsoft-graph',
+        body:
+          graphErr.body === undefined
+            ? undefined
+            : redactVendorText(typeof graphErr.body === 'string' ? graphErr.body : JSON.stringify(graphErr.body), 500),
+      }
     );
   }
   return new GatewayError('VENDOR_ERROR', 'Microsoft Graph request failed', 502, { vendor: 'microsoft-graph' });

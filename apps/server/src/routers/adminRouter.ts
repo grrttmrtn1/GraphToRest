@@ -16,6 +16,7 @@ import {
   importMappingsYaml,
   silentLogger,
   parseConnectionConfig,
+  redactVendorText,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -91,7 +92,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       const managedAuth = requireManagedAuth();
       if (typeof error === 'string') {
         connectionId = typeof state === 'string' ? managedAuth.abandonAuthorization(state) : null;
-        throw new GatewayError('AUTHORIZATION_DENIED', `The vendor reported an authorization error: ${error.slice(0, 100)}`, 400);
+        throw new GatewayError('AUTHORIZATION_DENIED', `The vendor reported an authorization error: ${redactVendorText(error, 100)}`, 400);
       }
       if (typeof code !== 'string' || typeof state !== 'string') {
         throw new GatewayError('INVALID_INPUT', '"code" and "state" query parameters are required', 400);

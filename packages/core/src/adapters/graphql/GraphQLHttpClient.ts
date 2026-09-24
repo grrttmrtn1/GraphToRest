@@ -1,4 +1,5 @@
 import { GatewayError } from '../../gateway/errors';
+import { redactVendorText } from '../../gateway/redact';
 import { outboundFetch } from '../../net/outboundUrl';
 
 export interface GraphQLExecuteInput {
@@ -66,9 +67,9 @@ export class GraphQLHttpClient {
       const firstError = body?.errors?.[0];
       throw new GatewayError(
         firstError?.extensions?.code ?? 'VENDOR_ERROR',
-        firstError?.message ?? `GraphQL endpoint responded with status ${response.status}`,
+        firstError?.message ? redactVendorText(firstError.message) : `GraphQL endpoint responded with status ${response.status}`,
         response.status,
-        { vendor: 'graphql', body: body ?? text.slice(0, 500) }
+        { vendor: 'graphql', body: redactVendorText(body ? JSON.stringify(body) : text, 500) }
       );
     }
 
@@ -78,9 +79,9 @@ export class GraphQLHttpClient {
 
     if (body.errors && body.errors.length > 0) {
       const firstError = body.errors[0];
-      throw new GatewayError(firstError.extensions?.code ?? 'GRAPHQL_ERROR', firstError.message, 400, {
+      throw new GatewayError(firstError.extensions?.code ?? 'GRAPHQL_ERROR', redactVendorText(String(firstError.message)), 400, {
         vendor: 'graphql',
-        errors: body.errors,
+        errors: body.errors.map((e) => ({ message: redactVendorText(String(e.message)), code: e.extensions?.code })),
       });
     }
 

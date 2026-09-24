@@ -30,6 +30,7 @@ export { GatewayEngine } from './gateway/GatewayEngine';
 export type { ResolvedRequest, GatewayHooks } from './gateway/GatewayEngine';
 export { GatewayError, toErrorResponse } from './gateway/errors';
 export type { ErrorResponse } from './gateway/errors';
+export { redactVendorText, REDACTED } from './gateway/redact';
 
 export { OpenApiGenerator } from './openapi/OpenApiGenerator';
 export { generateAndPersistMappings } from './mappingEngine/generateMappings';

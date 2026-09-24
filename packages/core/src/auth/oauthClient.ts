@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { GatewayError } from '../gateway/errors';
+import { redactVendorText } from '../gateway/redact';
 import { assertOutboundUrlShape, outboundFetch } from '../net/outboundUrl';
 
 export type OAuthGrant = 'client_credentials' | 'authorization_code';
@@ -122,9 +123,9 @@ async function postTokenRequest(tokenUrl: string, form: Record<string, string>):
     // non-JSON body — handled below
   }
   if (!response.ok || !body || typeof body.access_token !== 'string') {
-    const description = typeof body?.error_description === 'string' ? body.error_description.slice(0, 300) : undefined;
+    const description = typeof body?.error_description === 'string' ? redactVendorText(body.error_description) : undefined;
     throw new GatewayError('VENDOR_AUTH_FAILED', description ?? 'The vendor token endpoint rejected the request', 502, {
-      vendorError: typeof body?.error === 'string' ? body.error : undefined,
+      vendorError: typeof body?.error === 'string' ? redactVendorText(body.error, 100) : undefined,
       status: response.status,
     });
   }

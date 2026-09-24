@@ -231,6 +231,16 @@ describe('token requests', () => {
     ).rejects.toMatchObject({ code: 'VENDOR_AUTH_UNREACHABLE' });
   });
 
+  it('redacts secrets echoed in error_description', async () => {
+    const echoed = 'client_secret=' + 'S'.repeat(40);
+    nock('https://login.example').post('/token').reply(401, { error: 'invalid_client', error_description: echoed });
+    const err = await requestClientCredentialsToken('graphql', {
+      grant: 'client_credentials', clientId: 'a', clientSecret: 'S'.repeat(40), tokenUrl: 'https://login.example/token',
+    }).catch((e) => e);
+    expect(err.message).not.toContain('S'.repeat(40));
+    expect(err.message).toContain('[redacted]');
+  });
+
   it('refuses to refresh when no refresh token is stored', async () => {
     await expect(requestRefreshedToken('microsoft-graph', { ...msCreds, grant: 'authorization_code' })).rejects.toMatchObject({
       code: 'AUTHORIZATION_REQUIRED',

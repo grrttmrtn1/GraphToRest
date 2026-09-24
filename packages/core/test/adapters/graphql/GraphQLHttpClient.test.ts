@@ -121,4 +121,12 @@ describe('GraphQLHttpClient.execute', () => {
     const client = new GraphQLHttpClient('https://api.example.com/graphql', 'passthrough', 'tok');
     await expect(client.execute({ query: '{ a }' })).rejects.toMatchObject({ code: 'VENDOR_UNREACHABLE' });
   });
+
+  it('redacts token-like text in GraphQL error messages and bodies', async () => {
+    const leaked = 'T'.repeat(48);
+    nock('https://api.example.com').post('/graphql').reply(200, { errors: [{ message: `bad auth ${leaked}`, extensions: { code: 'UNAUTHENTICATED' } }] });
+    const client = new GraphQLHttpClient('https://api.example.com/graphql', 'passthrough', 'tok');
+    const err = await client.execute({ query: '{ a }' }).catch((e) => e);
+    expect(JSON.stringify({ message: err.message, details: err.details })).not.toContain(leaked);
+  });
 });
