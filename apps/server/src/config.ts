@@ -1,4 +1,4 @@
-import type { LogLevel } from '@graphtorest/core';
+import { outboundPolicyFromEnv, type LogLevel } from '@graphtorest/core';
 
 const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
@@ -36,14 +36,6 @@ function parseInteger(env: NodeJS.ProcessEnv, name: string, fallback: number, mi
   return parsed;
 }
 
-function parseBoolean(env: NodeJS.ProcessEnv, name: string, fallback: boolean): boolean {
-  const value = env[name];
-  if (!isSet(value)) return fallback;
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  throw new Error(`${name} must be "true" or "false", got "${value}"`);
-}
-
 function parseLogLevel(value: string | undefined): LogLevel {
   if (!isSet(value)) return 'info';
   if (!(LOG_LEVELS as readonly string[]).includes(value)) {
@@ -73,6 +65,7 @@ function parseBootstrapAdmin(env: NodeJS.ProcessEnv): ServerConfig['bootstrapAdm
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const port = parseInteger(env, 'PORT', 3000, 1, 65535);
+  const outbound = outboundPolicyFromEnv(env);
   return {
     port,
     dbPath: env.DB_PATH ?? './data/graphtorest.db',
@@ -86,8 +79,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     rateLimitDefault: parseRateLimitDefault(env),
     cacheMaxTtlSeconds: parseInteger(env, 'CACHE_MAX_TTL_SECONDS', 300, 0),
     cacheMaxEntries: parseInteger(env, 'CACHE_MAX_ENTRIES', 1000, 0),
-    outboundTimeoutMs: parseInteger(env, 'OUTBOUND_TIMEOUT_MS', 30_000, 1),
-    allowPrivateNetworkTargets: parseBoolean(env, 'ALLOW_PRIVATE_NETWORK_TARGETS', false),
+    outboundTimeoutMs: outbound.timeoutMs,
+    allowPrivateNetworkTargets: outbound.allowPrivateNetworkTargets,
     bootstrapAdmin: parseBootstrapAdmin(env),
   };
 }

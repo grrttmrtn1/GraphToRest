@@ -48,3 +48,15 @@ export { buildAuthContext } from './auth/authContext';
 
 export { createLogger, silentLogger } from './logging/logger';
 export type { Logger, LogLevel, LogFields, LoggerOptions } from './logging/logger';
+
+export { isPrivateAddress } from './net/ipRanges';
+export {
+  getOutboundPolicy,
+  setOutboundPolicy,
+  resetOutboundPolicy,
+  outboundPolicyFromEnv,
+  systemLookup,
+  DEFAULT_OUTBOUND_TIMEOUT_MS,
+} from './net/outboundPolicy';
+export type { OutboundPolicy, LookupFn } from './net/outboundPolicy';
+export { assertOutboundUrlShape, assertOutboundTargetAllowed, outboundFetch } from './net/outboundUrl';

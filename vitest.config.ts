@@ -5,5 +5,6 @@ export default defineConfig({
   test: {
     include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.{ts,tsx}'],
     environmentMatchGlobs: [['apps/web/**', 'jsdom']],
+    setupFiles: ['test/setup/outboundPolicy.ts'],
   },
 });
