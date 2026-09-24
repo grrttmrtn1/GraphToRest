@@ -55,7 +55,12 @@ describe('gtr admin', () => {
   it('creates an admin from GTR_ADMIN_PASSWORD, and fails with exit 2 without any password source', async () => {
     const c = cli({ env: { GTR_ADMIN_PASSWORD: 'correct-horse-battery' } });
     expect(await run(c, ['admin', 'create', '--username', 'ops'])).toMatchObject({ code: 0, stdout: 'Created admin user ops.\n' });
-    expect(withStore(c.dbPath, (store) => loginAdmin(store, 'ops', 'correct-horse-battery'))).not.toBeNull();
+    const db = openDb(c.dbPath);
+    try {
+      expect(await loginAdmin(new MappingStore(db), 'ops', 'correct-horse-battery')).not.toBeNull();
+    } finally {
+      db.close();
+    }
 
     const bare = cli();
     const failed = await run(bare, ['admin', 'create', '--username', 'ops']);

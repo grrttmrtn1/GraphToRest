@@ -230,7 +230,7 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
     it('creates an admin user who can log in, and rejects duplicates and weak passwords', async () => {
       const user = await h.client.createAdminUser({ username: 'ops', password: 'correct-horse-battery' });
       expect(user).toEqual({ id: expect.any(String), username: 'ops' });
-      expect(loginAdmin(h.store, 'ops', 'correct-horse-battery')).not.toBeNull();
+      expect(await loginAdmin(h.store, 'ops', 'correct-horse-battery')).not.toBeNull();
       expect(await codeOf(h.client.createAdminUser({ username: 'ops', password: 'correct-horse-battery' }))).toBe('CONFLICT');
       expect(await codeOf(h.client.createAdminUser({ username: 'ops2', password: 'short' }))).toBe('INVALID_INPUT');
     });
@@ -240,7 +240,7 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
       const { token } = h.store.createAdminSession(user.id, 60_000);
       await h.client.setAdminPassword({ username: 'ops', password: 'a-brand-new-password' });
       expect(h.store.findAdminSession(token)).toBeNull();
-      expect(loginAdmin(h.store, 'ops', 'a-brand-new-password')).not.toBeNull();
+      expect(await loginAdmin(h.store, 'ops', 'a-brand-new-password')).not.toBeNull();
       expect(await codeOf(h.client.setAdminPassword({ username: 'ghost', password: 'a-brand-new-password' }))).toBe('NOT_FOUND');
     });
 

@@ -6,7 +6,7 @@ function password(rt: Runtime, value: string | undefined, username: string): Pro
     value,
     envVar: 'GTR_ADMIN_PASSWORD',
     prompt: `Password for ${username}: `,
-    missing: 'Provide a password with --password, GTR_ADMIN_PASSWORD, or run in a terminal to be prompted (12+ characters)',
+    missing: 'Provide a password with --password, GTR_ADMIN_PASSWORD, or run in a terminal to be prompted (12–1024 characters)',
   });
 }
 

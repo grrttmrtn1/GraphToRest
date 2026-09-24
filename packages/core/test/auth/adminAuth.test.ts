@@ -59,17 +59,21 @@ describe('admin users', () => {
 });
 
 describe('loginAdmin and sessions', () => {
-  it('returns a session token for valid credentials that resolves back to the user', () => {
+  it('returns a session token for valid credentials that resolves back to the user', async () => {
     const user = store.createAdminUser({ username: 'admin', password: PASSWORD });
-    const session = loginAdmin(store, 'admin', PASSWORD);
+    const session = await loginAdmin(store, 'admin', PASSWORD);
     expect(session).not.toBeNull();
     expect(store.findAdminSession(session!.token)).toEqual(user);
   });
 
-  it('returns null for a wrong password or an unknown user', () => {
+  it('returns null for a wrong password or an unknown user', async () => {
     store.createAdminUser({ username: 'admin', password: PASSWORD });
-    expect(loginAdmin(store, 'admin', 'wrong-password-here')).toBeNull();
-    expect(loginAdmin(store, 'nobody', PASSWORD)).toBeNull();
+    expect(await loginAdmin(store, 'admin', 'wrong-password-here')).toBeNull();
+    expect(await loginAdmin(store, 'nobody', PASSWORD)).toBeNull();
+  });
+
+  it('rejects an over-long password without hashing it', async () => {
+    expect(await loginAdmin(store, 'admin', 'x'.repeat(1025))).toBeNull();
   });
 
   it('stores only a hash of the session token', () => {
@@ -94,13 +98,13 @@ describe('loginAdmin and sessions', () => {
     expect(store.findAdminSession(token)).toBeNull();
   });
 
-  it('setAdminPassword changes the password and revokes existing sessions', () => {
+  it('setAdminPassword changes the password and revokes existing sessions', async () => {
     const user = store.createAdminUser({ username: 'admin', password: PASSWORD });
     const { token } = store.createAdminSession(user.id, 60_000);
     expect(store.setAdminPassword('admin', 'a-brand-new-password')).toBe(true);
     expect(store.findAdminSession(token)).toBeNull();
-    expect(loginAdmin(store, 'admin', PASSWORD)).toBeNull();
-    expect(loginAdmin(store, 'admin', 'a-brand-new-password')).not.toBeNull();
+    expect(await loginAdmin(store, 'admin', PASSWORD)).toBeNull();
+    expect(await loginAdmin(store, 'admin', 'a-brand-new-password')).not.toBeNull();
     expect(store.setAdminPassword('nobody', 'a-brand-new-password')).toBe(false);
   });
 });

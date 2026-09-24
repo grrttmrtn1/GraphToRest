@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number) => Promise<Buffer>;
 
 export interface GeneratedApiKey {
   id: string;
@@ -19,10 +22,13 @@ export function hashSecret(secret: string): string {
   return `${salt}:${derived}`;
 }
 
-export function verifySecret(secret: string, hashedSecret: string): boolean {
+/** Verified against when the presented key id or username is unknown, so every failure path costs one scrypt. */
+export const DUMMY_SECRET_HASH = hashSecret('graphtorest-dummy-secret');
+
+export async function verifySecret(secret: string, hashedSecret: string): Promise<boolean> {
   const [salt, storedHex] = hashedSecret.split(':');
   if (!salt || !storedHex) return false;
-  const derived = crypto.scryptSync(secret, salt, 64);
+  const derived = await scryptAsync(secret, salt, 64);
   const stored = Buffer.from(storedHex, 'hex');
   return derived.length === stored.length && crypto.timingSafeEqual(derived, stored);
 }

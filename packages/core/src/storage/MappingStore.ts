@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import crypto from 'node:crypto';
 import { generateApiKey, hashSecret, type GeneratedApiKey } from '../auth/apiKeys';
+import { MAX_PASSWORD_LENGTH } from '../auth/adminAuth';
 import { GatewayError } from '../gateway/errors';
 
 export interface ConnectionRecord {
@@ -70,6 +71,9 @@ const MIN_PASSWORD_LENGTH = 12;
 function assertAcceptablePassword(password: string): void {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
     throw new GatewayError('INVALID_INPUT', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400);
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw new GatewayError('INVALID_INPUT', `Password must be at most ${MAX_PASSWORD_LENGTH} characters`, 400);
   }
 }
 

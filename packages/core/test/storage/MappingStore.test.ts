@@ -143,16 +143,22 @@ describe('MappingStore', () => {
     expect(store.updateMapping('nope', { source: 'manual' })).toBeNull();
   });
 
-  it('creates an api key whose plaintext verifies against the stored hash', () => {
+  it('creates an api key whose plaintext verifies against the stored hash', async () => {
     const created = store.createApiKey({ label: 'test key' });
     const found = store.findApiKeyById(created.id);
     expect(found).not.toBeNull();
     const parsed = parsePresentedKey(created.plaintext);
-    expect(verifySecret(parsed!.secret, found!.hashedKey)).toBe(true);
+    expect(await verifySecret(parsed!.secret, found!.hashedKey)).toBe(true);
   });
 
   it('touches last_used_at without throwing', () => {
     const created = store.createApiKey({});
     expect(() => store.touchApiKeyLastUsed(created.id)).not.toThrow();
+  });
+
+  it('rejects admin passwords longer than 1024 characters', () => {
+    expect(() => store.createAdminUser({ username: 'long', password: 'x'.repeat(1025) })).toThrow('at most 1024');
+    store.createAdminUser({ username: 'ok', password: 'x'.repeat(1024) });
+    expect(() => store.setAdminPassword('ok', 'y'.repeat(1025))).toThrow('at most 1024');
   });
 });

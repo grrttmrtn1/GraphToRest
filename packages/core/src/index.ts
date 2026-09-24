@@ -18,10 +18,10 @@ export type {
   RequestLogRecord,
 } from './storage/MappingStore';
 
-export { generateApiKey, hashSecret, verifySecret, parsePresentedKey } from './auth/apiKeys';
+export { generateApiKey, hashSecret, verifySecret, parsePresentedKey, DUMMY_SECRET_HASH } from './auth/apiKeys';
 export type { GeneratedApiKey } from './auth/apiKeys';
 
-export { loginAdmin, DEFAULT_ADMIN_SESSION_TTL_MS } from './auth/adminAuth';
+export { loginAdmin, DEFAULT_ADMIN_SESSION_TTL_MS, MAX_PASSWORD_LENGTH } from './auth/adminAuth';
 
 export { CredentialCipher } from './auth/credentialCipher';
 

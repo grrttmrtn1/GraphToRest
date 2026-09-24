@@ -57,32 +57,36 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     return connection;
   };
 
-  router.post('/login', (req, res) => {
-    const { username, password, session } = req.body ?? {};
-    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
-      sendError(res, 400, 'INVALID_INPUT', 'username and password required');
-      return;
+  router.post('/login', async (req, res, next) => {
+    try {
+      const { username, password, session } = req.body ?? {};
+      if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+        sendError(res, 400, 'INVALID_INPUT', 'username and password required');
+        return;
+      }
+      if (session !== undefined && session !== 'cookie') {
+        sendError(res, 400, 'INVALID_INPUT', '"session" must be "cookie" when provided');
+        return;
+      }
+      const result = await loginAdmin(mappingStore, username, password, options.sessionTtlMs);
+      if (!result) {
+        sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
+        return;
+      }
+      if (session !== 'cookie') {
+        res.json(result);
+        return;
+      }
+      const details = mappingStore.findAdminSessionDetails(result.token);
+      res.setHeader(
+        'Set-Cookie',
+        sessionCookie(result.token, { maxAgeSeconds: (Date.parse(result.expiresAt) - Date.now()) / 1000, secure: secureCookies })
+      );
+      // The token travels only in the HttpOnly cookie, never in a body page scripts could read.
+      res.json({ username: details?.user.username ?? username, expiresAt: result.expiresAt });
+    } catch (err) {
+      next(err);
     }
-    if (session !== undefined && session !== 'cookie') {
-      sendError(res, 400, 'INVALID_INPUT', '"session" must be "cookie" when provided');
-      return;
-    }
-    const result = loginAdmin(mappingStore, username, password, options.sessionTtlMs);
-    if (!result) {
-      sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
-      return;
-    }
-    if (session !== 'cookie') {
-      res.json(result);
-      return;
-    }
-    const details = mappingStore.findAdminSessionDetails(result.token);
-    res.setHeader(
-      'Set-Cookie',
-      sessionCookie(result.token, { maxAgeSeconds: (Date.parse(result.expiresAt) - Date.now()) / 1000, secure: secureCookies })
-    );
-    // The token travels only in the HttpOnly cookie, never in a body page scripts could read.
-    res.json({ username: details?.user.username ?? username, expiresAt: result.expiresAt });
   });
 
   router.get('/oauth/callback', async (req, res) => {

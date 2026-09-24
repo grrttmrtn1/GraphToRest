@@ -95,6 +95,12 @@ describe('admin authentication', () => {
     expect(weak.body.error.code).toBe('INVALID_INPUT');
   });
 
+  it('rejects an over-long password on POST /admin/admin-users', async () => {
+    const admin = createAdminClient(app, store);
+    const res = await admin.post('/admin/admin-users').send({ username: 'long', password: 'x'.repeat(1025) });
+    expect(res.status).toBe(400);
+  });
+
   it('does not affect API-key auth on /api/*', async () => {
     const res = await request(app).get('/api/anything');
     expect(res.status).toBe(401);
