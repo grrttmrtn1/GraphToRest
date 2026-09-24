@@ -156,6 +156,17 @@ describe('MappingStore', () => {
     expect(() => store.touchApiKeyLastUsed(created.id)).not.toThrow();
   });
 
+  it('stores, lists and updates per-key rate limits', () => {
+    const plain = store.createApiKey({ label: 'a' });
+    const limited = store.createApiKey({ label: 'b', rateLimit: { requestsPerMinute: 10, burst: 2 } });
+    expect(plain.rateLimit).toBeNull();
+    expect(store.findApiKeyById(limited.id)!.rateLimit).toEqual({ requestsPerMinute: 10, burst: 2 });
+    expect(store.setApiKeyRateLimit(plain.id, 'unlimited')!.rateLimit).toBe('unlimited');
+    expect(store.listApiKeys().map((k) => k.rateLimit)).toEqual(['unlimited', { requestsPerMinute: 10, burst: 2 }]);
+    expect(store.setApiKeyRateLimit('missing', null)).toBeNull();
+    expect(store.getApiKey(limited.id)!.label).toBe('b');
+  });
+
   it('rejects admin passwords longer than 1024 characters', () => {
     expect(() => store.createAdminUser({ username: 'long', password: 'x'.repeat(1025) })).toThrow('at most 1024');
     store.createAdminUser({ username: 'ok', password: 'x'.repeat(1024) });

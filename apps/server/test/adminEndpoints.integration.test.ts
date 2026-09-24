@@ -106,6 +106,28 @@ describe('API keys', () => {
   });
 });
 
+describe('API key rate limits', () => {
+  it('creates a key with a limit and changes it with PATCH', async () => {
+    const created = await admin.post('/admin/api-keys').send({ label: 'ci', rateLimit: { requestsPerMinute: 30 } });
+    expect(created.status).toBe(201);
+    expect(created.body.rateLimit).toEqual({ requestsPerMinute: 30, burst: 30 });
+    const patched = await admin.patch(`/admin/api-keys/${created.body.id}`).send({ rateLimit: 'unlimited' });
+    expect(patched.status).toBe(200);
+    expect(patched.body).toMatchObject({ id: created.body.id, label: 'ci', rateLimit: 'unlimited' });
+    expect((await admin.get('/admin/api-keys')).body[0].rateLimit).toBe('unlimited');
+    const cleared = await admin.patch(`/admin/api-keys/${created.body.id}`).send({ rateLimit: null });
+    expect(cleared.body.rateLimit).toBeNull();
+  });
+
+  it('validates rateLimit and reports unknown keys', async () => {
+    const key = await admin.post('/admin/api-keys').send({});
+    expect((await admin.patch(`/admin/api-keys/${key.body.id}`).send({ rateLimit: { requestsPerMinute: -1 } })).status).toBe(400);
+    expect((await admin.patch(`/admin/api-keys/${key.body.id}`).send({})).status).toBe(400);
+    expect((await admin.post('/admin/api-keys').send({ rateLimit: 'lots' })).status).toBe(400);
+    expect((await admin.patch('/admin/api-keys/nope').send({ rateLimit: null })).status).toBe(404);
+  });
+});
+
 describe('DELETE /admin/connections/:id', () => {
   it('deletes the connection and its mappings', async () => {
     const { connection } = seedConnectionWithMapping();

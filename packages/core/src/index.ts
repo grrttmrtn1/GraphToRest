@@ -51,6 +51,13 @@ export { buildAuthContext } from './auth/authContext';
 export { createLogger, silentLogger } from './logging/logger';
 export type { Logger, LogLevel, LogFields, LoggerOptions } from './logging/logger';
 
+export {
+  parseRateLimitSetting, serializeRateLimitSetting, deserializeRateLimitSetting, effectiveRateLimit, formatRateLimitSetting, MAX_RATE_LIMIT,
+} from './rateLimit/rateLimitConfig';
+export type { RateLimit, RateLimitSetting } from './rateLimit/rateLimitConfig';
+export { TokenBucket } from './rateLimit/TokenBucket';
+export type { TakeResult } from './rateLimit/TokenBucket';
+
 export { isPrivateAddress } from './net/ipRanges';
 export {
   getOutboundPolicy,

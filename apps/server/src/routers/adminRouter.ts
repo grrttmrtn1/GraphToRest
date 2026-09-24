@@ -17,6 +17,7 @@ import {
   silentLogger,
   parseConnectionConfig,
   redactVendorText,
+  parseRateLimitSetting,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -355,13 +356,23 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   });
 
   router.post('/api-keys', (req, res) => {
-    const { label } = req.body ?? {};
-    const created = mappingStore.createApiKey({ label });
-    res.status(201).json({ id: created.id, plaintext: created.plaintext, label: created.label });
+    const { label, rateLimit } = req.body ?? {};
+    const created = mappingStore.createApiKey({ label, rateLimit: rateLimit === undefined ? null : parseRateLimitSetting(rateLimit) });
+    res.status(201).json({ id: created.id, plaintext: created.plaintext, label: created.label, rateLimit: created.rateLimit });
   });
 
   router.get('/api-keys', (_req, res) => {
     res.json(mappingStore.listApiKeys());
+  });
+
+  router.patch('/api-keys/:id', (req, res) => {
+    const body = req.body ?? {};
+    if (!Object.prototype.hasOwnProperty.call(body, 'rateLimit')) {
+      throw new GatewayError('INVALID_INPUT', '"rateLimit" is required', 400);
+    }
+    const updated = mappingStore.setApiKeyRateLimit(req.params.id, parseRateLimitSetting(body.rateLimit));
+    if (!updated) throw new GatewayError('NOT_FOUND', 'API key not found', 404);
+    res.json(updated);
   });
 
   router.delete('/api-keys/:id', (req, res) => {

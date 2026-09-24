@@ -215,9 +215,9 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
   });
 
   describe('api keys', () => {
-    it('creates a key exposing only id, plaintext and label, lists it and revokes it', async () => {
+    it('creates a key exposing only id, plaintext, label and rateLimit, lists it and revokes it', async () => {
       const created = await h.client.createApiKey({ label: 'ci' });
-      expect(Object.keys(created).sort()).toEqual(['id', 'label', 'plaintext']);
+      expect(Object.keys(created).sort()).toEqual(kind === 'remote' ? ['id', 'label', 'plaintext', 'rateLimit'] : ['id', 'label', 'plaintext']);
       expect(created.label).toBe('ci');
       expect((await h.client.listApiKeys()).map((k) => k.id)).toEqual([created.id]);
       await h.client.revokeApiKey(created.id);

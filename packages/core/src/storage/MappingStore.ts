@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { generateApiKey, hashSecret, type GeneratedApiKey } from '../auth/apiKeys';
 import { MAX_PASSWORD_LENGTH } from '../auth/adminAuth';
 import { GatewayError } from '../gateway/errors';
+import { serializeRateLimitSetting, deserializeRateLimitSetting, type RateLimitSetting } from '../rateLimit/rateLimitConfig';
 
 export interface ConnectionRecord {
   id: string;
@@ -37,6 +38,7 @@ export interface ApiKeySummary {
   label: string | null;
   createdAt: string;
   lastUsedAt: string | null;
+  rateLimit: RateLimitSetting;
 }
 
 export interface RequestLogInput {
@@ -67,6 +69,12 @@ export interface RequestLogRecord {
 }
 
 const MIN_PASSWORD_LENGTH = 12;
+
+const API_KEY_COLUMNS = 'id, label, created_at as createdAt, last_used_at as lastUsedAt, rate_limit_config as rateLimitConfig';
+type ApiKeyRow = Omit<ApiKeySummary, 'rateLimit'> & { rateLimitConfig: string | null };
+function mapApiKeyRow({ rateLimitConfig, ...rest }: ApiKeyRow): ApiKeySummary {
+  return { ...rest, rateLimit: deserializeRateLimitSetting(rateLimitConfig) };
+}
 
 function assertAcceptablePassword(password: string): void {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
@@ -271,31 +279,43 @@ export class MappingStore {
     return this.db.prepare('DELETE FROM mappings WHERE id = ?').run(id).changes > 0;
   }
 
-  createApiKey(input: { label?: string }): GeneratedApiKey & ApiKeyRecord {
+  createApiKey(input: { label?: string; rateLimit?: RateLimitSetting }): GeneratedApiKey & ApiKeyRecord & { rateLimit: RateLimitSetting } {
     const generated = generateApiKey();
     const label = input.label ?? null;
+    const rateLimit = input.rateLimit ?? null;
     this.db
-      .prepare('INSERT INTO api_keys (id, hashed_key, label) VALUES (?, ?, ?)')
-      .run(generated.id, generated.hashedSecret, label);
-    return { ...generated, label };
+      .prepare('INSERT INTO api_keys (id, hashed_key, label, rate_limit_config) VALUES (?, ?, ?, ?)')
+      .run(generated.id, generated.hashedSecret, label, serializeRateLimitSetting(rateLimit));
+    return { ...generated, label, rateLimit };
   }
 
-  findApiKeyById(id: string): { id: string; hashedKey: string } | null {
+  findApiKeyById(id: string): { id: string; hashedKey: string; rateLimit: RateLimitSetting } | null {
     const row = this.db
-      .prepare('SELECT id, hashed_key as hashedKey FROM api_keys WHERE id = ?')
-      .get(id) as { id: string; hashedKey: string } | undefined;
-    return row ?? null;
+      .prepare('SELECT id, hashed_key as hashedKey, rate_limit_config as rateLimitConfig FROM api_keys WHERE id = ?')
+      .get(id) as { id: string; hashedKey: string; rateLimitConfig: string | null } | undefined;
+    return row ? { id: row.id, hashedKey: row.hashedKey, rateLimit: deserializeRateLimitSetting(row.rateLimitConfig) } : null;
   }
 
   touchApiKeyLastUsed(id: string): void {
     this.db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(id);
   }
 
+  getApiKey(id: string): ApiKeySummary | null {
+    const row = this.db.prepare(`SELECT ${API_KEY_COLUMNS} FROM api_keys WHERE id = ?`).get(id) as ApiKeyRow | undefined;
+    return row ? mapApiKeyRow(row) : null;
+  }
+
+  setApiKeyRateLimit(id: string, rateLimit: RateLimitSetting): ApiKeySummary | null {
+    const changes = this.db
+      .prepare('UPDATE api_keys SET rate_limit_config = ? WHERE id = ?')
+      .run(serializeRateLimitSetting(rateLimit), id).changes;
+    return changes > 0 ? this.getApiKey(id) : null;
+  }
+
   /** Key metadata only — never the hash. */
   listApiKeys(): ApiKeySummary[] {
-    return this.db
-      .prepare('SELECT id, label, created_at as createdAt, last_used_at as lastUsedAt FROM api_keys ORDER BY created_at, id')
-      .all() as ApiKeySummary[];
+    // `id` is a random token, not a sortable sequence — break created_at ties with the table's insertion-order rowid.
+    return (this.db.prepare(`SELECT ${API_KEY_COLUMNS} FROM api_keys ORDER BY created_at, rowid`).all() as ApiKeyRow[]).map(mapApiKeyRow);
   }
 
   deleteApiKey(id: string): boolean {

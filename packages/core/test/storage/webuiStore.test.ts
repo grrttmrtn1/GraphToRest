@@ -68,7 +68,7 @@ describe('API key listing and deletion', () => {
     const listed = store.listApiKeys();
     expect(listed.map((k) => k.id).sort()).toEqual([first.id, second.id].sort());
     const firstRow = listed.find((k) => k.id === first.id)!;
-    expect(Object.keys(firstRow).sort()).toEqual(['createdAt', 'id', 'label', 'lastUsedAt']);
+    expect(Object.keys(firstRow).sort()).toEqual(['createdAt', 'id', 'label', 'lastUsedAt', 'rateLimit']);
     expect(firstRow.label).toBe('first');
     expect(typeof firstRow.createdAt).toBe('string');
     expect(typeof firstRow.lastUsedAt).toBe('string');
