@@ -12,6 +12,7 @@ import {
 } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createActivityLogger, DEFAULT_ACTIVITY_RETENTION } from './middleware/activityLog';
+import { RateLimiter } from './middleware/rateLimit';
 import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
 import { createRequestLogger } from './middleware/requestLogger';
@@ -31,11 +32,13 @@ export interface AppDeps {
   webRoot?: string;
   logger?: Logger;
   loginThrottle?: LoginThrottle;
+  rateLimiter?: RateLimiter;
 }
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
   const logger = deps.logger ?? silentLogger;
+  const rateLimiter = deps.rateLimiter ?? new RateLimiter({ defaultLimit: null });
   // 1 MB so the web UI can import a mappings YAML file through POST /admin/mappings/import.
   app.use(express.json({ limit: '1mb' }));
 
@@ -49,6 +52,7 @@ export function createApp(deps: AppDeps): Express {
       createRequestLogger(logger, 'api'),
       createActivityLogger(deps.mappingStore, deps.activityRetention ?? DEFAULT_ACTIVITY_RETENTION, logger),
       createApiKeyAuth(deps.mappingStore),
+      rateLimiter.middleware(),
       createApiRouter(deps.gatewayEngine, logger)
     );
   }

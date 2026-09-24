@@ -22,6 +22,7 @@ export function createApiKeyAuth(mappingStore: MappingStore): RequestHandler {
       }
       mappingStore.touchApiKeyLastUsed(record.id);
       res.locals.apiKeyId = record.id;
+      res.locals.apiKeyRateLimit = record.rateLimit;
       next();
     } catch (err) {
       next(err);

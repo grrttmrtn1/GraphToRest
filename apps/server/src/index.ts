@@ -13,6 +13,7 @@ import {
 } from '@graphtorest/core';
 import { loadConfig } from './config';
 import { createApp } from './app';
+import { RateLimiter } from './middleware/rateLimit';
 
 registerDefaultAdapters();
 const config = loadConfig();
@@ -30,6 +31,9 @@ const openApiGenerator = new OpenApiGenerator();
 const webDist = path.resolve(__dirname, '../../web/dist');
 const webRoot = config.webEnabled && fs.existsSync(path.join(webDist, 'index.html')) ? webDist : undefined;
 
+// Task 14 stops this on shutdown.
+const rateLimiter = new RateLimiter({ defaultLimit: config.rateLimitDefault });
+
 const app = createApp({
   mappingStore,
   gatewayEngine,
@@ -41,6 +45,7 @@ const app = createApp({
   activityRetention: config.activityRetention,
   webRoot,
   logger,
+  rateLimiter,
 });
 
 if (!managedAuth) {
