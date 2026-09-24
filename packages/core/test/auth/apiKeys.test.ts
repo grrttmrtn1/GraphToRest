@@ -26,11 +26,13 @@ describe('apiKeys', () => {
 
   it('verifies asynchronously without blocking the event loop for the whole hash', async () => {
     const key = generateApiKey();
-    let ticked = false;
-    const tick = new Promise<void>((resolve) => setImmediate(() => { ticked = true; resolve(); }));
-    const result = verifySecret(key.plaintext.split('.')[1], key.hashedSecret);
-    await tick;
-    expect(ticked).toBe(true);
+    let settled = false;
+    const result = verifySecret(key.plaintext.split('.')[1], key.hashedSecret).then((v) => {
+      settled = true;
+      return v;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
     expect(await result).toBe(true);
   });
 
