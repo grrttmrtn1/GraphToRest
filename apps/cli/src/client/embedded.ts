@@ -73,6 +73,9 @@ export class EmbeddedClient implements GtrClient {
   }
 
   async createConnection(input: CreateConnectionInput) {
+    if (!input.name || !input.adapterType || !input.authMode) {
+      throw invalid('name, adapterType, authMode required');
+    }
     try {
       return this.store.createConnection(input);
     } catch (err) {

@@ -56,6 +56,12 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
       expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'passthrough' }))).toBe('CONFLICT');
       expect(await codeOf(h.client.deleteConnection('nope'))).toBe('NOT_FOUND');
     });
+
+    it('reports INVALID_INPUT for an empty name, adapterType or authMode', async () => {
+      expect(await codeOf(h.client.createConnection({ name: '', adapterType: 'mock', authMode: 'passthrough' }))).toBe('INVALID_INPUT');
+      expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: '', authMode: 'passthrough' }))).toBe('INVALID_INPUT');
+      expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: 'mock', authMode: '' }))).toBe('INVALID_INPUT');
+    });
   });
 
   describe('managed credentials', () => {
