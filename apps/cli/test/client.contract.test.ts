@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { loginAdmin } from '@graphtorest/core';
 import { toCliError } from '../src/errors';
-import { embeddedHarness, type Harness, type HarnessFactory } from './helpers/harness';
+import { embeddedHarness, remoteHarness, type Harness, type HarnessFactory } from './helpers/harness';
 
-const HARNESSES: Array<[Harness['kind'], HarnessFactory]> = [['embedded', embeddedHarness]];
+const HARNESSES: Array<[Harness['kind'], HarnessFactory]> = [
+  ['embedded', embeddedHarness],
+  ['remote', remoteHarness],
+];
 
 /** Resolves to the CLI error code a failing call produces (after the same normalization the CLI applies). */
 async function codeOf(promise: Promise<unknown>): Promise<string> {
