@@ -12,6 +12,13 @@ describe('loadConfig', () => {
       publicBaseUrl: 'http://localhost:3000',
       activityRetention: 1000,
       webEnabled: true,
+      logLevel: 'info',
+      rateLimitDefault: null,
+      cacheMaxTtlSeconds: 300,
+      cacheMaxEntries: 1000,
+      outboundTimeoutMs: 30000,
+      allowPrivateNetworkTargets: false,
+      bootstrapAdmin: null,
     });
     expect(config.credentialEncryptionKey).toBeUndefined();
   });
@@ -26,6 +33,15 @@ describe('loadConfig', () => {
       PUBLIC_BASE_URL: 'https://gtr.example.com/',
       ACTIVITY_RETENTION: '250',
       WEB_ENABLED: 'false',
+      LOG_LEVEL: 'debug',
+      RATE_LIMIT_DEFAULT: '60',
+      RATE_LIMIT_DEFAULT_BURST: '20',
+      CACHE_MAX_TTL_SECONDS: '60',
+      CACHE_MAX_ENTRIES: '0',
+      OUTBOUND_TIMEOUT_MS: '5000',
+      ALLOW_PRIVATE_NETWORK_TARGETS: 'true',
+      GTR_BOOTSTRAP_ADMIN_USERNAME: 'root',
+      GTR_BOOTSTRAP_ADMIN_PASSWORD: 'correct-horse-battery',
     });
     expect(config).toEqual({
       port: 8080,
@@ -36,6 +52,13 @@ describe('loadConfig', () => {
       publicBaseUrl: 'https://gtr.example.com',
       activityRetention: 250,
       webEnabled: false,
+      logLevel: 'debug',
+      rateLimitDefault: { requestsPerMinute: 60, burst: 20 },
+      cacheMaxTtlSeconds: 60,
+      cacheMaxEntries: 0,
+      outboundTimeoutMs: 5000,
+      allowPrivateNetworkTargets: true,
+      bootstrapAdmin: { username: 'root', password: 'correct-horse-battery' },
     });
   });
 
@@ -45,5 +68,44 @@ describe('loadConfig', () => {
 
   it.each(['0', '-1', '1.5', 'many'])('rejects ACTIVITY_RETENTION=%s', (value) => {
     expect(() => loadConfig({ ACTIVITY_RETENTION: value })).toThrow(/ACTIVITY_RETENTION/);
+  });
+
+  it('defaults the burst to the rate', () => {
+    expect(loadConfig({ RATE_LIMIT_DEFAULT: '30' }).rateLimitDefault).toEqual({ requestsPerMinute: 30, burst: 30 });
+  });
+
+  it.each([
+    ['PORT', 'abc'],
+    ['PORT', '0'],
+    ['PORT', '70000'],
+    ['RATE_LIMIT_DEFAULT', '0'],
+    ['RATE_LIMIT_DEFAULT', '1.5'],
+    ['CACHE_MAX_TTL_SECONDS', '-1'],
+    ['CACHE_MAX_ENTRIES', 'lots'],
+    ['OUTBOUND_TIMEOUT_MS', '0'],
+    ['ACTIVITY_RETENTION', '0'],
+  ])('rejects %s=%s', (name, value) => {
+    expect(() => loadConfig({ [name]: value })).toThrow(name);
+  });
+
+  it('rejects RATE_LIMIT_DEFAULT_BURST without RATE_LIMIT_DEFAULT', () => {
+    expect(() => loadConfig({ RATE_LIMIT_DEFAULT_BURST: '5' })).toThrow('RATE_LIMIT_DEFAULT_BURST');
+  });
+
+  it('rejects an unknown LOG_LEVEL', () => {
+    expect(() => loadConfig({ LOG_LEVEL: 'verbose' })).toThrow('LOG_LEVEL');
+  });
+
+  it('rejects a non-boolean ALLOW_PRIVATE_NETWORK_TARGETS', () => {
+    expect(() => loadConfig({ ALLOW_PRIVATE_NETWORK_TARGETS: 'yes' })).toThrow('ALLOW_PRIVATE_NETWORK_TARGETS');
+  });
+
+  it('requires both bootstrap admin variables or neither', () => {
+    expect(() => loadConfig({ GTR_BOOTSTRAP_ADMIN_USERNAME: 'root' })).toThrow('GTR_BOOTSTRAP_ADMIN_PASSWORD');
+    expect(() => loadConfig({ GTR_BOOTSTRAP_ADMIN_PASSWORD: 'correct-horse-battery' })).toThrow('GTR_BOOTSTRAP_ADMIN_USERNAME');
+  });
+
+  it('keeps the port in the default public base URL', () => {
+    expect(loadConfig({ PORT: '8080' }).publicBaseUrl).toBe('http://localhost:8080');
   });
 });
