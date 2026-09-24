@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import type { MappingStore } from '@graphtorest/core';
+import { silentLogger, type Logger, type MappingStore } from '@graphtorest/core';
 
 export const DEFAULT_ACTIVITY_RETENTION = 1000;
 
@@ -7,7 +7,7 @@ export const DEFAULT_ACTIVITY_RETENTION = 1000;
  * Writes one request_log row per /api request when the response finishes. Only the path is stored — never the
  * query string, headers or body. A failed write is logged and never affects the response.
  */
-export function createActivityLogger(store: MappingStore, retention: number): RequestHandler {
+export function createActivityLogger(store: MappingStore, retention: number, logger: Logger = silentLogger): RequestHandler {
   return (req, res, next) => {
     const startedAt = new Date();
     const started = process.hrtime.bigint();
@@ -28,7 +28,7 @@ export function createActivityLogger(store: MappingStore, retention: number): Re
           retention
         );
       } catch (err) {
-        console.error(JSON.stringify({ msg: 'activity_log_write_failed', error: err instanceof Error ? err.message : String(err) }));
+        logger.error('activity_log_write_failed', { error: err });
       }
     });
     next();

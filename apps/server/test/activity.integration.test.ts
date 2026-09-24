@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
-import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters } from '@graphtorest/core';
+import { openDb, MappingStore, GatewayEngine, OpenApiGenerator, registerDefaultAdapters, createLogger, type Logger } from '@graphtorest/core';
 import { createApp } from '../src/app';
 import { createAdminClient, type AdminClient } from './helpers';
 
@@ -12,7 +12,7 @@ let store: MappingStore;
 let app: ReturnType<typeof createApp>;
 let admin: AdminClient;
 
-function buildApp(activityRetention?: number) {
+function buildApp(activityRetention?: number, logger?: Logger) {
   return createApp({
     mappingStore: store,
     gatewayEngine: new GatewayEngine(store),
@@ -20,6 +20,7 @@ function buildApp(activityRetention?: number) {
     apiEnabled: true,
     adminEnabled: true,
     activityRetention,
+    logger,
   });
 }
 
@@ -112,11 +113,12 @@ describe('activity logging', () => {
     vi.spyOn(store, 'recordRequest').mockImplementation(() => {
       throw new Error('disk full');
     });
-    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await request(app).get('/api/users/42').set('Authorization', `Bearer ${key.plaintext}`);
+    const lines: string[] = [];
+    const loggedApp = buildApp(undefined, createLogger({ write: (line) => lines.push(line) }));
+    const res = await request(loggedApp).get('/api/users/42').set('Authorization', `Bearer ${key.plaintext}`);
     await settle();
     expect(res.status).toBe(200);
-    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('activity_log_write_failed'));
+    expect(lines.some((line) => line.includes('activity_log_write_failed'))).toBe(true);
   });
 });
 

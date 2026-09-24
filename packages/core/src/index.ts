@@ -45,3 +45,6 @@ export type { ManagedCredentials, OAuthGrant } from './auth/oauthClient';
 export { ManagedTokenService, connectionIdFromAuthorizationError } from './auth/managedTokenService';
 export type { AccessTokenProvider, CredentialStatus, AuthorizationCallbackError } from './auth/managedTokenService';
 export { buildAuthContext } from './auth/authContext';
+
+export { createLogger, silentLogger } from './logging/logger';
+export type { Logger, LogLevel, LogFields, LoggerOptions } from './logging/logger';

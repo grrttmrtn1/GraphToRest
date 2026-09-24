@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import {
   type MappingStore,
   type ManagedTokenService,
   type ConnectionRecord,
+  type Logger,
   buildAuthContext,
   generateAndPersistMappings,
   parseMappingFields,
@@ -13,6 +14,7 @@ import {
   listAdapterTypes,
   exportMappingsYaml,
   importMappingsYaml,
+  silentLogger,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -22,10 +24,18 @@ export interface AdminRouterOptions {
   managedAuth?: ManagedTokenService;
   publicBaseUrl?: string;
   webUiRedirects?: boolean;
+  logger?: Logger;
+}
+
+/** Sends an error envelope and records the code so the request logger can report it. */
+function sendError(res: Response, status: number, code: string, message: string): void {
+  res.locals.errorCode = code;
+  res.status(status).json({ error: { code, message, details: {} } });
 }
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
   const router = Router();
+  const logger = options.logger ?? silentLogger;
   const requireAdmin = createAdminAuth(mappingStore, { publicBaseUrl: options.publicBaseUrl });
   const secureCookies = (options.publicBaseUrl ?? '').startsWith('https://');
 
@@ -48,16 +58,16 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/login', (req, res) => {
     const { username, password, session } = req.body ?? {};
     if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
-      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'username and password required', details: {} } });
+      sendError(res, 400, 'INVALID_INPUT', 'username and password required');
       return;
     }
     if (session !== undefined && session !== 'cookie') {
-      res.status(400).json({ error: { code: 'INVALID_INPUT', message: '"session" must be "cookie" when provided', details: {} } });
+      sendError(res, 400, 'INVALID_INPUT', '"session" must be "cookie" when provided');
       return;
     }
     const result = loginAdmin(mappingStore, username, password, options.sessionTtlMs);
     if (!result) {
-      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid username or password', details: {} } });
+      sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
       return;
     }
     if (session !== 'cookie') {
@@ -92,8 +102,9 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       }
       res.json({ status: 'authorized', connectionId });
     } catch (err) {
-      if (!(err instanceof GatewayError)) console.error(err);
+      if (!(err instanceof GatewayError)) logger.error('unhandled_error', { error: err });
       const { status, body } = toErrorResponse(err);
+      res.locals.errorCode = body.error.code;
       if (options.webUiRedirects) {
         // Only the error code goes into the URL — never vendor-supplied text.
         const failedConnectionId = connectionId ?? connectionIdFromAuthorizationError(err);
@@ -140,16 +151,14 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/admin-users', (req, res) => {
     const { username, password } = req.body ?? {};
     if (typeof username !== 'string' || typeof password !== 'string') {
-      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'username and password required', details: {} } });
+      sendError(res, 400, 'INVALID_INPUT', 'username and password required');
       return;
     }
     try {
       res.status(201).json(mappingStore.createAdminUser({ username, password }));
     } catch (err) {
       if ((err as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        res.status(409).json({
-          error: { code: 'CONFLICT', message: 'An admin user with this username already exists', details: {} },
-        });
+        sendError(res, 409, 'CONFLICT', 'An admin user with this username already exists');
         return;
       }
       throw err;
@@ -182,7 +191,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/connections', (req, res) => {
     const { name, adapterType, authMode, config } = req.body ?? {};
     if (!name || !adapterType || !authMode) {
-      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'name, adapterType, authMode required', details: {} } });
+      sendError(res, 400, 'INVALID_INPUT', 'name, adapterType, authMode required');
       return;
     }
     try {
@@ -190,9 +199,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        res.status(409).json({
-          error: { code: 'CONFLICT', message: 'A connection with this name already exists', details: {} },
-        });
+        sendError(res, 409, 'CONFLICT', 'A connection with this name already exists');
         return;
       }
       throw err;
@@ -221,7 +228,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/connections/:id/mappings/generate', async (req, res) => {
     const connection = mappingStore.getConnection(req.params.id);
     if (!connection) {
-      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Connection not found', details: {} } });
+      sendError(res, 404, 'NOT_FOUND', 'Connection not found');
       return;
     }
     const force = (req.body ?? {}).force === true;
@@ -231,8 +238,9 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       const result = await generateAndPersistMappings(mappingStore, connection, authContext, { force });
       res.json(result);
     } catch (err) {
-      if (!(err instanceof GatewayError)) console.error(err);
+      if (!(err instanceof GatewayError)) logger.error('unhandled_error', { error: err });
       const { status, body } = toErrorResponse(err);
+      res.locals.errorCode = body.error.code;
       res.status(status).json(body);
     }
   });
@@ -240,9 +248,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.post('/mappings', (req, res) => {
     const { connectionId, route, method, operation, responseTemplate, source } = req.body ?? {};
     if (!connectionId || !route || !method || !operation) {
-      res.status(400).json({
-        error: { code: 'INVALID_INPUT', message: 'connectionId, route, method, operation required', details: {} },
-      });
+      sendError(res, 400, 'INVALID_INPUT', 'connectionId, route, method, operation required');
       return;
     }
     const fields = parseMappingFields({ route, method, operation, responseTemplate, source });
@@ -260,15 +266,11 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        res.status(409).json({
-          error: { code: 'CONFLICT', message: 'A mapping with this route and method already exists', details: {} },
-        });
+        sendError(res, 409, 'CONFLICT', 'A mapping with this route and method already exists');
         return;
       }
       if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-        res.status(400).json({
-          error: { code: 'INVALID_INPUT', message: 'connectionId does not reference an existing connection', details: {} },
-        });
+        sendError(res, 400, 'INVALID_INPUT', 'connectionId does not reference an existing connection');
         return;
       }
       throw err;
@@ -318,16 +320,14 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         source: 'manual', // any admin edit flips a mapping to manual (spec §5.2); a body "source" is ignored
       });
       if (!updated) {
-        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Mapping not found', details: {} } });
+        sendError(res, 404, 'NOT_FOUND', 'Mapping not found');
         return;
       }
       res.json(updated);
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        res.status(409).json({
-          error: { code: 'CONFLICT', message: 'A mapping with this route and method already exists', details: {} },
-        });
+        sendError(res, 409, 'CONFLICT', 'A mapping with this route and method already exists');
         return;
       }
       throw err;

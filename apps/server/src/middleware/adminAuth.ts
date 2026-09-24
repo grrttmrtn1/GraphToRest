@@ -19,12 +19,14 @@ export function createAdminAuth(store: MappingStore, options: AdminAuthOptions =
     const token = viaCookie ? parseCookies(req.header('cookie'))[ADMIN_SESSION_COOKIE] : /^Bearer (.+)$/.exec(header)?.[1];
     const session = token ? store.findAdminSessionDetails(token) : null;
     if (!token || !session) {
+      res.locals.errorCode = 'UNAUTHORIZED';
       res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Admin login required', details: {} } });
       return;
     }
     if (viaCookie && !SAFE_METHODS.has(req.method)) {
       const rejection = csrfRejection(req, options.publicBaseUrl);
       if (rejection) {
+        res.locals.errorCode = 'CSRF_REJECTED';
         res.status(403).json({ error: { code: 'CSRF_REJECTED', message: rejection, details: {} } });
         return;
       }

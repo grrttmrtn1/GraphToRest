@@ -1,4 +1,5 @@
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+import type { LogLevel } from '@graphtorest/core';
+
 const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
 export interface ServerConfig {
