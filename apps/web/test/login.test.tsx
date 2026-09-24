@@ -23,7 +23,7 @@ describe('login', () => {
     ]);
     renderApp('/activity');
     expect(await screen.findByRole('heading', { name: 'GraphToRest' })).toBeTruthy();
-    expect(screen.getByText(/gtr admin-create/)).toBeTruthy();
+    expect(screen.getByText(/gtr admin create/)).toBeTruthy();
 
     fillLogin('admin', 'correct-horse-battery');
 

@@ -2,7 +2,7 @@ services:
   graphtorest:
     build: .
     # /admin/* requires an admin login. Create the first admin (12+ character password) with:
-    #   docker compose run --rm -e GTR_ADMIN_PASSWORD --entrypoint gtr graphtorest admin-create --username admin
+    #   docker compose run --rm -e GTR_ADMIN_PASSWORD --entrypoint gtr graphtorest admin create --username admin
     # The server speaks plain HTTP, so keep the loopback binding unless a TLS-terminating
     # reverse proxy sits in front of it.
     ports:

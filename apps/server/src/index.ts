@@ -52,7 +52,7 @@ if (config.adminEnabled && mappingStore.countAdminUsers() === 0) {
     JSON.stringify({
       msg: 'no_admin_users',
       warning:
-        'No admin users exist, so /admin/* cannot be used. Create one with: gtr admin-create --username <name> (password via --password or GTR_ADMIN_PASSWORD, 12+ characters)',
+        'No admin users exist, so /admin/* cannot be used. Create one with: gtr admin create --username <name> (password via --password or GTR_ADMIN_PASSWORD, 12+ characters)',
     })
   );
 }

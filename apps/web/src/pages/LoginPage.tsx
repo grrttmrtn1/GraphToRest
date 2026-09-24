@@ -42,7 +42,7 @@ export function LoginPage() {
         </button>
       </form>
       <p className="muted">
-        First time? Create an admin account on the server with <code>gtr admin-create --username &lt;name&gt;</code>.
+        First time? Create an admin account on the server with <code>gtr admin create --username &lt;name&gt;</code>.
       </p>
     </div>
   );

@@ -14,7 +14,7 @@ function invalid(message: string): GatewayError {
   return new GatewayError('INVALID_INPUT', message, 400);
 }
 
-/** Serializes mappings to the YAML format shared by `gtr mapping-export` and the admin API. */
+/** Serializes mappings to the YAML format shared by `gtr mapping export` and the admin API. */
 export function exportMappingsYaml(store: MappingStore, options: { connectionId?: string } = {}): string {
   const connections = store.listConnections();
   if (options.connectionId !== undefined && !connections.some((c) => c.id === options.connectionId)) {

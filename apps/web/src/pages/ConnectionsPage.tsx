@@ -122,7 +122,7 @@ function ImportMappingsForm() {
   return (
     <div className="panel">
       <h2>Import mappings from YAML</h2>
-      <p className="muted">Uses the same format as <code>gtr mapping-export</code>. Nothing is written if any entry is invalid.</p>
+      <p className="muted">Uses the same format as <code>gtr mapping export</code>. Nothing is written if any entry is invalid.</p>
       <input
         type="file"
         accept=".yaml,.yml,text/yaml"
