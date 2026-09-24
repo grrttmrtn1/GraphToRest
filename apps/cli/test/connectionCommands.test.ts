@@ -114,6 +114,19 @@ describe('gtr connection', () => {
     expect(c.stdout()).toBe(`Deleted connection gone (${created.id}).\n`);
   });
 
+  it('refuses delete and credentials clear in a non-TTY without --yes before sending any request', async () => {
+    const fake = fakeFetch({});
+    const remote = cli({ env: { GTR_SERVER: 'http://gtr.test', GTR_TOKEN: 'tok' }, fetchImpl: fake.impl });
+    expect(await remote.run(['connection', 'delete', 'some-conn'])).toBe(2);
+    expect(remote.stderr()).toMatch(/pass --yes/);
+    expect(fake.calls).toHaveLength(0);
+
+    remote.reset();
+    expect(await remote.run(['connection', 'credentials', 'clear', 'some-conn'])).toBe(2);
+    expect(remote.stderr()).toMatch(/pass --yes/);
+    expect(fake.calls).toHaveLength(0);
+  });
+
   it('sets credentials from a file, reports status and clears them', async () => {
     const c = cli();
     await createConnection(c, 'm', 'managed');

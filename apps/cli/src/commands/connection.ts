@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Command } from 'commander';
-import { action, requireMode, confirmOrRefuse, parseJsonObject, type CliContext } from '../runtime';
+import { action, requireMode, confirmOrRefuse, requireConfirmable, parseJsonObject, type CliContext } from '../runtime';
 import { CliError, toCliError, usageError } from '../errors';
 import { table } from '../output';
 import { resolveConnection } from '../client/resolve';
@@ -104,6 +104,7 @@ export function registerConnectionCommands(program: Command, ctx: CliContext): v
     .option('--yes', 'do not ask for confirmation')
     .action(
       action(ctx, async (rt, ref: string, opts: { yes?: boolean }) => {
+        requireConfirmable(rt, opts.yes);
         const client = rt.client();
         const found = await resolveConnection(client, ref);
         if (!(await confirmOrRefuse(rt, opts.yes, `Delete connection "${found.name}" (${found.id}) and all of its mappings?`))) return;
@@ -147,6 +148,7 @@ export function registerConnectionCommands(program: Command, ctx: CliContext): v
     .option('--yes', 'do not ask for confirmation')
     .action(
       action(ctx, async (rt, ref: string, opts: { yes?: boolean }) => {
+        requireConfirmable(rt, opts.yes);
         const client = rt.client();
         const found = await resolveConnection(client, ref);
         if (!(await confirmOrRefuse(rt, opts.yes, `Clear stored credentials for "${found.name}"?`))) return;

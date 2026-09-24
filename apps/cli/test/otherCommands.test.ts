@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import fs from 'node:fs';
 import { loginAdmin, openDb, MappingStore } from '@graphtorest/core';
 import { makeCli } from './helpers/cli';
 import { fakeFetch } from './helpers/fakeFetch';
@@ -60,6 +61,8 @@ describe('gtr admin', () => {
     const failed = await run(bare, ['admin', 'create', '--username', 'ops']);
     expect(failed.code).toBe(2);
     expect(failed.stderr).toMatch(/--password, GTR_ADMIN_PASSWORD/);
+    // The password must be resolved before the client opens (and so creates) the embedded DB file.
+    expect(fs.existsSync(bare.dbPath)).toBe(false);
   });
 
   it('prompts for the password on a terminal', async () => {
@@ -80,6 +83,14 @@ describe('gtr admin', () => {
     const remote = cli({ env: { GTR_SERVER: 'http://gtr.test', GTR_TOKEN: 't' }, fetchImpl: fakeFetch({}).impl });
     expect(await remote.run(['admin', 'set-password', '--username', 'ops', '--password', 'a-brand-new-password'])).toBe(2);
     expect(remote.stderr()).toMatch(/embedded-only/);
+  });
+
+  it('resolves the password before opening (and so creating) the embedded DB for set-password too', async () => {
+    const bare = cli();
+    const failed = await run(bare, ['admin', 'set-password', '--username', 'ghost']);
+    expect(failed.code).toBe(2);
+    expect(failed.stderr).toMatch(/--password, GTR_ADMIN_PASSWORD/);
+    expect(fs.existsSync(bare.dbPath)).toBe(false);
   });
 });
 

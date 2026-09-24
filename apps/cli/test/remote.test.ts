@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { RemoteClient } from '../src/client/remote';
 import { fakeFetch } from './helpers/fakeFetch';
 
@@ -72,21 +74,62 @@ describe('RemoteClient errors', () => {
     expect(err.message).toMatch(/expected JSON but got text\/html.*Is this a GraphToRest server URL\?/);
   });
 
-  it('tells the user to log in again when a sent token is rejected', async () => {
+  it('explains a 2xx HTML response to a text/yaml export instead of writing HTML as the export', async () => {
+    const fake = fakeFetch({ 'GET /admin/mappings/export': { status: 200, body: '<html>hello</html>', contentType: 'text/html' } });
+    const err = await failure(client(fake.impl).exportMappings({}));
+    expect(err.code).toBe('SERVER_ERROR');
+    expect(err.message).toMatch(/expected YAML but got text\/html.*Is this a GraphToRest server URL\?/);
+  });
+
+  it('accepts a text/yaml response (with parameters) for an export', async () => {
+    const fake = fakeFetch({ 'GET /admin/mappings/export': { status: 200, body: '- a: 1\n', contentType: 'text/yaml; charset=utf-8' } });
+    await expect(client(fake.impl).exportMappings({})).resolves.toBe('- a: 1\n');
+  });
+
+  it('maps a timeout that fires while reading the response body to TIMEOUT', async () => {
+    // A real server, because AbortSignal.timeout only aborts an in-progress body read on a genuine
+    // fetch() stream; a fakeFetch Response can't reproduce that.
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.flushHeaders();
+      res.write('{');
+      // Deliberately never res.end(): the body read hangs until the request's AbortSignal.timeout fires.
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const remote = new RemoteClient({ server: `http://127.0.0.1:${port}`, token: 'tok', source: '--server', timeoutMs: 100 });
+      expect(await failure(remote.listConnections())).toMatchObject({
+        code: 'TIMEOUT',
+        message: `Request to http://127.0.0.1:${port} timed out after 0.1s`,
+      });
+    } finally {
+      server.close();
+    }
+  });
+
+  it('maps a malformed JSON body to SERVER_ERROR instead of a raw SyntaxError', async () => {
+    const fake = fakeFetch({ 'GET /admin/connections': { status: 200, body: 'not json', contentType: 'application/json' } });
+    const err = await failure(client(fake.impl).listConnections());
+    expect(err.code).toBe('SERVER_ERROR');
+    expect(err.message).toMatch(/expected JSON.*Is this a GraphToRest server URL\?/);
+  });
+
+  it('tells the user to log in again when a sent token is rejected, naming where the server was configured from', async () => {
     const fake = fakeFetch({ 'GET /admin/connections': { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'Admin login required', details: {} } } } });
-    expect(await failure(client(fake.impl).listConnections())).toMatchObject({
+    expect(await failure(client(fake.impl, { source: 'profile' }).listConnections())).toMatchObject({
       code: 'UNAUTHORIZED',
       exitCode: 3,
-      message: 'Session expired or revoked; run "gtr login --server http://gtr.test"',
+      message: 'Session expired or revoked (configured via profile); run "gtr login --server http://gtr.test"',
     });
   });
 
-  it('fails before any request when there is no token', async () => {
+  it('fails before any request when there is no token, naming where the server was configured from', async () => {
     const fake = fakeFetch({});
-    expect(await failure(client(fake.impl, { token: null }).listConnections())).toMatchObject({
+    expect(await failure(client(fake.impl, { token: null, source: 'GTR_SERVER' }).listConnections())).toMatchObject({
       code: 'NOT_LOGGED_IN',
       exitCode: 3,
-      message: 'Not logged in to http://gtr.test; run "gtr login --server http://gtr.test"',
+      message: 'Not logged in to http://gtr.test (configured via GTR_SERVER); run "gtr login --server http://gtr.test"',
     });
     expect(fake.calls).toHaveLength(0);
   });

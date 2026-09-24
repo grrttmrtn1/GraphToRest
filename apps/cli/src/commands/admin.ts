@@ -20,7 +20,8 @@ export function registerAdminCommands(program: Command, ctx: CliContext): void {
     .option('--password <password>', 'visible in shell history; prefer GTR_ADMIN_PASSWORD or the prompt')
     .action(
       action(ctx, async (rt, opts: { username: string; password?: string }) => {
-        const user = await rt.client().createAdminUser({ username: opts.username, password: await password(rt, opts.password, opts.username) });
+        const pwd = await password(rt, opts.password, opts.username);
+        const user = await rt.client().createAdminUser({ username: opts.username, password: pwd });
         rt.out.result(user, (u) => `Created admin user ${u.username}.`);
       })
     );
@@ -37,7 +38,8 @@ export function registerAdminCommands(program: Command, ctx: CliContext): void {
           'embedded',
           '"admin set-password" is embedded-only (lockout recovery): run it where the SQLite file is, without --server/GTR_SERVER and after "gtr logout"'
         );
-        await rt.client().setAdminPassword({ username: opts.username, password: await password(rt, opts.password, opts.username) });
+        const pwd = await password(rt, opts.password, opts.username);
+        await rt.client().setAdminPassword({ username: opts.username, password: pwd });
         rt.out.result({ username: opts.username, passwordUpdated: true }, (r) => `Password updated for ${r.username}.`);
       })
     );

@@ -85,12 +85,22 @@ export async function resolveText(rt: Runtime, value: string | undefined, prompt
   throw usageError(missing);
 }
 
-/** true = go ahead. Without a terminal, --yes is mandatory. */
-export async function confirmOrRefuse(rt: Runtime, yes: boolean | undefined, question: string): Promise<boolean> {
-  if (yes) return true;
+/**
+ * Refuses a destructive command outright when it has no --yes and no terminal to ask on. Call this
+ * before doing any work (resolving a connection, opening the embedded DB, sending a request) so a
+ * non-interactive invocation without --yes fails fast and never touches the client.
+ */
+export function requireConfirmable(rt: Runtime, yes: boolean | undefined): void {
+  if (yes) return;
   if (!rt.ctx.prompter.isInteractive()) {
     throw usageError('Refusing to delete without confirmation: pass --yes when not running in a terminal');
   }
+}
+
+/** true = go ahead. Without a terminal, --yes is mandatory (see requireConfirmable, which callers run first). */
+export async function confirmOrRefuse(rt: Runtime, yes: boolean | undefined, question: string): Promise<boolean> {
+  if (yes) return true;
+  requireConfirmable(rt, yes);
   const confirmed = await rt.ctx.prompter.confirm(question);
   if (!confirmed) rt.out.warn('Cancelled.');
   return confirmed;

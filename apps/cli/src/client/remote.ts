@@ -171,7 +171,7 @@ export class RemoteClient implements GtrClient {
     const { server, token, source } = this.options;
     const authenticated = opts.auth !== false;
     if (authenticated && !token) {
-      throw new CliError('NOT_LOGGED_IN', `Not logged in to ${server}; run "gtr login --server ${server}"`);
+      throw new CliError('NOT_LOGGED_IN', `Not logged in to ${server} (configured via ${source}); run "gtr login --server ${server}"`);
     }
 
     const url = new URL(`${server}/admin${path}`);
@@ -201,21 +201,54 @@ export class RemoteClient implements GtrClient {
     if (!res.ok) throw await this.errorFrom(res);
     const expect = opts.expect ?? 'json';
     if (expect === 'none' || res.status === 204) return undefined as T;
-    if (expect === 'text') return (await res.text()) as T;
     const contentType = res.headers.get('content-type') ?? '';
+    if (expect === 'text') {
+      if (!/^text\/yaml/i.test(contentType)) {
+        throw new CliError(
+          'SERVER_ERROR',
+          `Unexpected response from ${server}: expected YAML but got ${contentType || 'no content type'}. Is this a GraphToRest server URL?`
+        );
+      }
+      return (await this.readBody(res, 'text', timeoutMs)) as T;
+    }
     if (!/^application\/json/i.test(contentType)) {
       throw new CliError(
         'SERVER_ERROR',
         `Unexpected response from ${server}: expected JSON but got ${contentType || 'no content type'}. Is this a GraphToRest server URL?`
       );
     }
-    return (await res.json()) as T;
+    return (await this.readBody(res, 'json', timeoutMs)) as T;
+  }
+
+  /**
+   * res.text()/res.json() read the response body, which is still subject to the request's
+   * AbortSignal.timeout: a timeout firing mid-read must map to TIMEOUT like a timeout during
+   * fetch() itself, and a JSON content-type with an unparsable body (some proxies send an HTML
+   * error page with a JSON content-type) must map to the same SERVER_ERROR as a wrong content type
+   * rather than a raw SyntaxError.
+   */
+  private async readBody<K extends 'json' | 'text'>(res: Response, kind: K, timeoutMs: number): Promise<unknown> {
+    const { server } = this.options;
+    try {
+      return kind === 'json' ? await res.json() : await res.text();
+    } catch (err) {
+      if ((err as { name?: string } | null)?.name === 'TimeoutError') {
+        throw new CliError('TIMEOUT', `Request to ${server} timed out after ${timeoutMs / 1000}s`);
+      }
+      if (kind === 'json') {
+        throw new CliError(
+          'SERVER_ERROR',
+          `Unexpected response from ${server}: expected JSON but got an unparsable body. Is this a GraphToRest server URL?`
+        );
+      }
+      throw err;
+    }
   }
 
   private async errorFrom(res: Response): Promise<CliError> {
-    const { server, token } = this.options;
+    const { server, token, source } = this.options;
     if (res.status === 401 && token) {
-      return new CliError('UNAUTHORIZED', `Session expired or revoked; run "gtr login --server ${server}"`);
+      return new CliError('UNAUTHORIZED', `Session expired or revoked (configured via ${source}); run "gtr login --server ${server}"`);
     }
     let parsed: unknown;
     try {
