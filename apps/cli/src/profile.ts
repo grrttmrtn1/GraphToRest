@@ -43,11 +43,18 @@ export function readProfile(file: string): Profile | null {
   return { server: p.server!, username: p.username!, token: p.token!, expiresAt: p.expiresAt! };
 }
 
-/** Atomic write; the file holds a bearer token, so it is created 0600 inside a 0700 directory. */
+/**
+ * Atomic write; the file holds a bearer token, so it is always created 0600. A directory this call creates
+ * (e.g. a fresh ~/.config/graphtorest) is tightened to 0700 — mkdirSync's mode is subject to umask, so an
+ * explicit chmod is still needed. A directory that already existed is left as is: GTR_PROFILE_PATH lets a user
+ * point the profile anywhere (their home directory, /tmp, ...), and chmod-ing a directory we did not create
+ * would silently change permissions the user did not ask us to touch, or fail outright (e.g. EPERM on /tmp).
+ */
 export function writeProfile(file: string, profile: Profile): void {
   const dir = path.dirname(file);
+  const dirExisted = fs.existsSync(dir);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  fs.chmodSync(dir, 0o700);
+  if (!dirExisted) fs.chmodSync(dir, 0o700);
   const temp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(temp, file);

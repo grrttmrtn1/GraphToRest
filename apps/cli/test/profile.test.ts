@@ -34,6 +34,16 @@ describe('profile file', () => {
     expect(fs.readdirSync(path.dirname(file))).toEqual(['cli.json']);
   });
 
+  it('leaves an already-existing directory\'s permissions alone (GTR_PROFILE_PATH may point anywhere)', () => {
+    const dir = tempDir();
+    fs.chmodSync(dir, 0o755);
+    const file = path.join(dir, 'cli.json');
+    writeProfile(file, PROFILE);
+    expect(readProfile(file)).toEqual(PROFILE);
+    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(dir).mode & 0o777).toBe(0o755);
+  });
+
   it('returns null when there is no file', () => {
     expect(readProfile(path.join(tempDir(), 'missing.json'))).toBeNull();
   });
