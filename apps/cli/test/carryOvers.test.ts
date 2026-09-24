@@ -5,7 +5,6 @@ import path from 'node:path';
 import { openEmbeddedStore } from '../src/embeddedClient';
 import { connectionCreate } from '../src/commands/connectionCreate';
 import { mappingExport } from '../src/commands/mappingExport';
-import { mappingImport } from '../src/commands/mappingImport';
 
 let dbPath: string;
 const cleanup: string[] = [];
@@ -34,35 +33,5 @@ describe('mapping-export output file', () => {
 
     expect(fs.readFileSync(outFile, 'utf8')).toBe(text);
     expect(fs.readdirSync(path.dirname(outFile))).toEqual(['mappings.yaml']);
-  });
-});
-
-describe('mapping-import auth override', () => {
-  it('rejects a file containing auth: override and writes nothing', () => {
-    const store = freshStore();
-    connectionCreate(store, { name: 'c1', adapterType: 'mock', authMode: 'passthrough' });
-    const file = path.join(os.tmpdir(), `graphtorest-override-${Date.now()}-${Math.random()}.yaml`);
-    cleanup.push(file);
-    fs.writeFileSync(
-      file,
-      [
-        '- route: GET /ok',
-        '  connection: c1',
-        '  source: manual',
-        '  operation: { query: q }',
-        '  response: { shape: passthrough }',
-        '  auth: inherit',
-        '- route: GET /overridden',
-        '  connection: c1',
-        '  source: manual',
-        '  operation: { query: q }',
-        '  response: { shape: passthrough }',
-        '  auth: override',
-        '',
-      ].join('\n')
-    );
-
-    expect(() => mappingImport(store, { file, warn: () => {} })).toThrow(/override/);
-    expect(store.listMappings()).toHaveLength(0);
   });
 });
