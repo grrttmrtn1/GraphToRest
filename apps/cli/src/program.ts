@@ -4,6 +4,9 @@ import type { CliContext } from './runtime';
 import { registerAuthCommands } from './commands/auth';
 import { registerConnectionCommands } from './commands/connection';
 import { registerMappingCommands } from './commands/mapping';
+import { registerApiKeyCommands } from './commands/apikey';
+import { registerAdminCommands } from './commands/admin';
+import { registerMiscCommands } from './commands/misc';
 
 export function buildProgram(ctx: CliContext): Command {
   const program = new Command();
@@ -20,6 +23,9 @@ export function buildProgram(ctx: CliContext): Command {
   registerAuthCommands(program, ctx);
   registerConnectionCommands(program, ctx);
   registerMappingCommands(program, ctx);
+  registerApiKeyCommands(program, ctx);
+  registerAdminCommands(program, ctx);
+  registerMiscCommands(program, ctx);
   return program;
 }
 
