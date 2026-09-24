@@ -10,6 +10,9 @@ import {
   exportMappingsYaml,
   importMappingsYaml,
   parseMappingFields,
+  parseConnectionConfig,
+  setOutboundPolicy,
+  outboundPolicyFromEnv,
   type ConnectionRecord,
 } from '@graphtorest/core';
 import { CliError } from '../errors';
@@ -50,6 +53,7 @@ export class EmbeddedClient implements GtrClient {
   readonly mode = 'embedded' as const;
 
   static open(dbPath: string, env: NodeJS.ProcessEnv = process.env): EmbeddedClient {
+    setOutboundPolicy(outboundPolicyFromEnv(env));
     registerDefaultAdapters();
     const db = openDb(dbPath);
     const store = new MappingStore(db);
@@ -76,8 +80,9 @@ export class EmbeddedClient implements GtrClient {
     if (!input.name || !input.adapterType || !input.authMode) {
       throw invalid('name, adapterType, authMode required');
     }
+    const config = parseConnectionConfig(input.config);
     try {
-      return this.store.createConnection(input);
+      return this.store.createConnection({ ...input, config });
     } catch (err) {
       if (sqliteCode(err) === 'SQLITE_CONSTRAINT_UNIQUE') throw new CliError('CONFLICT', 'A connection with this name already exists');
       throw err;

@@ -1,4 +1,5 @@
 import { GatewayError } from '../../gateway/errors';
+import { outboundFetch } from '../../net/outboundUrl';
 
 export interface GraphQLExecuteInput {
   query: string;
@@ -35,8 +36,9 @@ export class GraphQLHttpClient {
 
   async execute(input: GraphQLExecuteInput): Promise<unknown> {
     let response: Response;
+    let text: string;
     try {
-      response = await fetch(this.endpoint, {
+      response = await outboundFetch(this.endpoint, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -44,14 +46,15 @@ export class GraphQLHttpClient {
         },
         body: JSON.stringify({ query: input.query, variables: input.variables ?? {} }),
       });
+      text = await response.text();
     } catch (err) {
+      if (err instanceof GatewayError) throw err;
       throw new GatewayError('VENDOR_UNREACHABLE', 'Could not reach the GraphQL endpoint', 502, {
         vendor: 'graphql',
         message: (err as Error).message,
       });
     }
 
-    const text = await response.text();
     let body: GraphQLHttpResponse | null = null;
     try {
       body = JSON.parse(text) as GraphQLHttpResponse;

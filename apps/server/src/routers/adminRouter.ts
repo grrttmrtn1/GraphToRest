@@ -15,6 +15,7 @@ import {
   exportMappingsYaml,
   importMappingsYaml,
   silentLogger,
+  parseConnectionConfig,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -195,7 +196,8 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
       return;
     }
     try {
-      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode, config }));
+      const parsedConfig = parseConnectionConfig(config);
+      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode, config: parsedConfig }));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {

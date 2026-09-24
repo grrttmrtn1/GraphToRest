@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { GatewayError } from '../gateway/errors';
+import { assertOutboundUrlShape, outboundFetch } from '../net/outboundUrl';
 
 export type OAuthGrant = 'client_credentials' | 'authorization_code';
 
@@ -27,7 +28,6 @@ interface OAuthEndpoints {
 }
 
 const GRAPH_DEFAULT_SCOPE = 'https://graph.microsoft.com/.default';
-const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
 
 function invalid(message: string): GatewayError {
   return new GatewayError('INVALID_INPUT', message, 400);
@@ -36,18 +36,6 @@ function invalid(message: string): GatewayError {
 function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw invalid(`"${field}" is required`);
   return value.trim();
-}
-
-function requireHttpsUrl(value: unknown, field: string): string {
-  const text = requireString(value, field);
-  let url: URL;
-  try {
-    url = new URL(text);
-  } catch {
-    throw invalid(`"${field}" must be a valid URL`);
-  }
-  if (url.protocol !== 'https:') throw invalid(`"${field}" must be an https URL`);
-  return text;
 }
 
 export function parseManagedCredentials(adapterType: string, input: unknown): ManagedCredentials {
@@ -74,8 +62,9 @@ export function parseManagedCredentials(adapterType: string, input: unknown): Ma
     if (!/^[A-Za-z0-9.-]+$/.test(tenantId)) throw invalid('"tenantId" may only contain letters, digits, dots and hyphens');
     credentials.tenantId = tenantId;
   } else {
-    credentials.tokenUrl = requireHttpsUrl(raw.tokenUrl, 'tokenUrl');
-    if (grant === 'authorization_code') credentials.authorizeUrl = requireHttpsUrl(raw.authorizeUrl, 'authorizeUrl');
+    credentials.tokenUrl = assertOutboundUrlShape(raw.tokenUrl, 'tokenUrl', { httpsOnly: true });
+    if (grant === 'authorization_code')
+      credentials.authorizeUrl = assertOutboundUrlShape(raw.authorizeUrl, 'authorizeUrl', { httpsOnly: true });
   }
   if (raw.refreshToken !== undefined) {
     if (grant !== 'authorization_code') throw invalid('"refreshToken" is only valid with the authorization_code grant');
@@ -105,16 +94,18 @@ function scopeParam(credentials: ManagedCredentials, endpoints: OAuthEndpoints):
 
 async function postTokenRequest(tokenUrl: string, form: Record<string, string>): Promise<TokenResponse> {
   let response: Response;
+  let text: string;
   try {
-    response = await fetch(tokenUrl, {
+    response = await outboundFetch(tokenUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
       body: new URLSearchParams(form).toString(),
       // Never follow redirects: a 307/308 would re-POST the form (client secret, tokens) to another host or over http.
       redirect: 'manual',
-      signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
     });
+    text = await response.text();
   } catch (err) {
+    if (err instanceof GatewayError) throw err;
     throw new GatewayError('VENDOR_AUTH_UNREACHABLE', 'Could not reach the vendor token endpoint', 502, {
       message: (err as Error).message,
     });
@@ -124,7 +115,6 @@ async function postTokenRequest(tokenUrl: string, form: Record<string, string>):
       status: response.status,
     });
   }
-  const text = await response.text();
   let body: Record<string, unknown> | null = null;
   try {
     body = JSON.parse(text) as Record<string, unknown>;

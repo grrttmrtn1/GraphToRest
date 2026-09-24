@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import nock from 'nock';
 import { GraphQLHttpClient } from '../../../src/adapters/graphql/GraphQLHttpClient';
 import { GatewayError } from '../../../src/gateway/errors';
+import { setOutboundPolicy } from '../../../src/net/outboundPolicy';
 
 const HOST = 'https://api.example-graphql-test.com';
 const ENDPOINT = `${HOST}/graphql`;
@@ -91,5 +92,33 @@ describe('GraphQLHttpClient.execute', () => {
 
     const client = new GraphQLHttpClient(ENDPOINT, 'passthrough', 'vendor-token-1');
     await expect(client.execute({ query: 'query { nope }' })).rejects.toMatchObject({ status: 502, code: 'VENDOR_ERROR' });
+  });
+
+  it('refuses a private-network endpoint before sending the vendor token', async () => {
+    setOutboundPolicy({ lookup: async () => ['10.0.0.9'] });
+    const scope = nock('https://internal.example').post('/graphql').reply(200, { data: {} });
+    const client = new GraphQLHttpClient('https://internal.example/graphql', 'passthrough', 'tok');
+    await expect(client.execute({ query: '{ a }' })).rejects.toMatchObject({ code: 'OUTBOUND_TARGET_BLOCKED', status: 502 });
+    expect(scope.isDone()).toBe(false);
+  });
+
+  it('maps a timeout to VENDOR_UNREACHABLE', async () => {
+    setOutboundPolicy({ timeoutMs: 50 });
+    nock('https://api.example.com').post('/graphql').delay(300).reply(200, { data: {} });
+    const client = new GraphQLHttpClient('https://api.example.com/graphql', 'passthrough', 'tok');
+    await expect(client.execute({ query: '{ a }' })).rejects.toMatchObject({ code: 'VENDOR_UNREACHABLE', status: 502 });
+  });
+
+  it('maps a body that stalls past the timeout to VENDOR_UNREACHABLE', async () => {
+    setOutboundPolicy({ timeoutMs: 80 });
+    nock('https://api.example.com').post('/graphql').delayBody(400).reply(200, { data: {} });
+    const client = new GraphQLHttpClient('https://api.example.com/graphql', 'passthrough', 'tok');
+    await expect(client.execute({ query: '{ a }' })).rejects.toMatchObject({ code: 'VENDOR_UNREACHABLE' });
+  });
+
+  it('does not follow redirects', async () => {
+    nock('https://api.example.com').post('/graphql').reply(307, '', { location: 'https://elsewhere.example/graphql' });
+    const client = new GraphQLHttpClient('https://api.example.com/graphql', 'passthrough', 'tok');
+    await expect(client.execute({ query: '{ a }' })).rejects.toMatchObject({ code: 'VENDOR_UNREACHABLE' });
   });
 });

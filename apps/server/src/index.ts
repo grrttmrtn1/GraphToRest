@@ -9,6 +9,7 @@ import {
   CredentialCipher,
   registerDefaultAdapters,
   createLogger,
+  setOutboundPolicy,
 } from '@graphtorest/core';
 import { loadConfig } from './config';
 import { createApp } from './app';
@@ -16,6 +17,7 @@ import { createApp } from './app';
 registerDefaultAdapters();
 const config = loadConfig();
 const logger = createLogger({ level: config.logLevel });
+setOutboundPolicy({ timeoutMs: config.outboundTimeoutMs, allowPrivateNetworkTargets: config.allowPrivateNetworkTargets });
 const db = openDb(config.dbPath);
 const mappingStore = new MappingStore(db);
 const managedAuth = config.credentialEncryptionKey

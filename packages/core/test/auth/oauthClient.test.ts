@@ -10,6 +10,7 @@ import {
   generatePkcePair,
   type ManagedCredentials,
 } from '../../src/auth/oauthClient';
+import { setOutboundPolicy } from '../../src/net/outboundPolicy';
 
 afterEach(() => {
   nock.cleanAll();
@@ -67,6 +68,12 @@ describe('parseManagedCredentials', () => {
     expect(() => parseManagedCredentials('microsoft-graph', { ...ok, scopes: ['has space'] })).toThrow(/scopes/);
     expect(() => parseManagedCredentials('microsoft-graph', { ...ok, refreshToken: 'rt' })).toThrow(/refreshToken/);
     expect(() => parseManagedCredentials('microsoft-graph', 'nope')).toThrow(/object/);
+  });
+
+  it('rejects a tokenUrl with embedded credentials', () => {
+    expect(() =>
+      parseManagedCredentials('graphql', { grant: 'client_credentials', clientId: 'a', clientSecret: 'b', tokenUrl: 'https://u:p@login.example/token' })
+    ).toThrow('must not contain a username or password');
   });
 
   it('accepts a pre-supplied refreshToken for authorization_code', () => {
@@ -207,6 +214,21 @@ describe('token requests', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('refuses a token endpoint on a private network', async () => {
+    setOutboundPolicy({ lookup: async () => ['192.168.1.20'] });
+    await expect(
+      requestClientCredentialsToken('graphql', { grant: 'client_credentials', clientId: 'a', clientSecret: 'b', tokenUrl: 'https://login.example/token' })
+    ).rejects.toMatchObject({ code: 'OUTBOUND_TARGET_BLOCKED' });
+  });
+
+  it('maps a stalled token response body to VENDOR_AUTH_UNREACHABLE', async () => {
+    setOutboundPolicy({ timeoutMs: 80 });
+    nock('https://login.example').post('/token').delayBody(400).reply(200, { access_token: 'x', expires_in: 60 });
+    await expect(
+      requestClientCredentialsToken('graphql', { grant: 'client_credentials', clientId: 'a', clientSecret: 'b', tokenUrl: 'https://login.example/token' })
+    ).rejects.toMatchObject({ code: 'VENDOR_AUTH_UNREACHABLE' });
   });
 
   it('refuses to refresh when no refresh token is stored', async () => {
