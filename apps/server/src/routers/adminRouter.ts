@@ -20,6 +20,7 @@ import {
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
+import { LoginThrottle, loginThrottleKeys } from '../middleware/loginThrottle';
 
 export interface AdminRouterOptions {
   sessionTtlMs?: number;
@@ -27,12 +28,13 @@ export interface AdminRouterOptions {
   publicBaseUrl?: string;
   webUiRedirects?: boolean;
   logger?: Logger;
+  loginThrottle?: LoginThrottle;
 }
 
 /** Sends an error envelope and records the code so the request logger can report it. */
-function sendError(res: Response, status: number, code: string, message: string): void {
+function sendError(res: Response, status: number, code: string, message: string, details: Record<string, unknown> = {}): void {
   res.locals.errorCode = code;
-  res.status(status).json({ error: { code, message, details: {} } });
+  res.status(status).json({ error: { code, message, details } });
 }
 
 export function createAdminRouter(mappingStore: MappingStore, options: AdminRouterOptions = {}): Router {
@@ -40,6 +42,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   const logger = options.logger ?? silentLogger;
   const requireAdmin = createAdminAuth(mappingStore, { publicBaseUrl: options.publicBaseUrl });
   const secureCookies = (options.publicBaseUrl ?? '').startsWith('https://');
+  const loginThrottle = options.loginThrottle ?? new LoginThrottle();
 
   const requireManagedAuth = (): ManagedTokenService => {
     if (!options.managedAuth) {
@@ -68,11 +71,21 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         sendError(res, 400, 'INVALID_INPUT', '"session" must be "cookie" when provided');
         return;
       }
+      const keys = loginThrottleKeys(username, req.ip);
+      const retryMs = loginThrottle.retryAfterMs(keys);
+      if (retryMs > 0) {
+        const retryAfterSeconds = Math.ceil(retryMs / 1000);
+        res.setHeader('Retry-After', String(retryAfterSeconds));
+        sendError(res, 429, 'LOGIN_THROTTLED', 'Too many failed login attempts; try again later', { retryAfterSeconds });
+        return;
+      }
       const result = await loginAdmin(mappingStore, username, password, options.sessionTtlMs);
       if (!result) {
+        loginThrottle.recordFailure(keys);
         sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
         return;
       }
+      loginThrottle.recordSuccess(keys[0]);
       if (session !== 'cookie') {
         res.json(result);
         return;

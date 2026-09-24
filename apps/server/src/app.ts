@@ -16,6 +16,7 @@ import { createApiRouter } from './routers/apiRouter';
 import { createAdminRouter } from './routers/adminRouter';
 import { createRequestLogger } from './middleware/requestLogger';
 import { createWebHandler } from './web';
+import type { LoginThrottle } from './middleware/loginThrottle';
 
 export interface AppDeps {
   mappingStore: MappingStore;
@@ -29,6 +30,7 @@ export interface AppDeps {
   activityRetention?: number;
   webRoot?: string;
   logger?: Logger;
+  loginThrottle?: LoginThrottle;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -61,6 +63,7 @@ export function createApp(deps: AppDeps): Express {
         publicBaseUrl: deps.publicBaseUrl,
         webUiRedirects: deps.webRoot !== undefined,
         logger,
+        loginThrottle: deps.loginThrottle,
       })
     );
   }
