@@ -145,4 +145,15 @@ describe('GraphHttpClient.batch', () => {
       status: 404,
     });
   });
+
+  it('redacts token-like text in a failed batch sub-response body', async () => {
+    const leaked = 'T'.repeat(48);
+    nock('https://graph.microsoft.com')
+      .post('/v1.0/$batch')
+      .reply(200, { responses: [{ id: 'user', status: 401, body: { error: { message: `bad auth ${leaked}` } } }] });
+
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    const err = await client.batch([{ id: 'user', method: 'GET', path: '/users/999' }]).catch((e) => e);
+    expect(JSON.stringify({ message: err.message, details: err.details })).not.toContain(leaked);
+  });
 });

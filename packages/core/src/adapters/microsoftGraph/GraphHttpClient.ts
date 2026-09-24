@@ -77,7 +77,13 @@ export class GraphHttpClient {
             'VENDOR_ERROR',
             `Batch sub-request "${response.id}" failed with status ${response.status}`,
             status,
-            { vendor: 'microsoft-graph', body: response.body }
+            {
+              vendor: 'microsoft-graph',
+              body:
+                response.body === undefined
+                  ? undefined
+                  : redactVendorText(typeof response.body === 'string' ? response.body : JSON.stringify(response.body), 500),
+            }
           );
         }
         byId[response.id] = response.body;
