@@ -2,6 +2,7 @@ import { Command, CommanderError } from 'commander';
 import { EXIT_CODES, toCliError } from './errors';
 import type { CliContext } from './runtime';
 import { registerAuthCommands } from './commands/auth';
+import { registerConnectionCommands } from './commands/connection';
 
 export function buildProgram(ctx: CliContext): Command {
   const program = new Command();
@@ -16,6 +17,7 @@ export function buildProgram(ctx: CliContext): Command {
     .configureOutput({ writeOut: (text) => ctx.io.out(text), writeErr: (text) => ctx.io.err(text) });
 
   registerAuthCommands(program, ctx);
+  registerConnectionCommands(program, ctx);
   return program;
 }
 
