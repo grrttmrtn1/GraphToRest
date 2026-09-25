@@ -9,6 +9,7 @@ import type {
   Mapping,
   MappingPatch,
   NewConnection,
+  RateLimitSetting,
   Session,
 } from './types';
 
@@ -102,7 +103,10 @@ export const api = {
   importMappings: (yaml: string) => apiFetch<ImportResult>('/admin/mappings/import', { method: 'POST', body: { yaml } }),
 
   apiKeys: () => apiFetch<ApiKeySummary[]>('/admin/api-keys'),
-  createApiKey: (label?: string) => apiFetch<CreatedApiKey>('/admin/api-keys', { method: 'POST', body: label ? { label } : {} }),
+  createApiKey: (input: { label?: string; rateLimit?: RateLimitSetting }) =>
+    apiFetch<CreatedApiKey>('/admin/api-keys', { method: 'POST', body: input }),
+  updateApiKeyRateLimit: (id: string, rateLimit: RateLimitSetting) =>
+    apiFetch<ApiKeySummary>(`/admin/api-keys/${enc(id)}`, { method: 'PATCH', body: { rateLimit } }),
   deleteApiKey: (id: string) => apiFetch<void>(`/admin/api-keys/${enc(id)}`, { method: 'DELETE' }),
 
   activity: (before?: number) =>

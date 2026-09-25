@@ -47,17 +47,21 @@ export interface ImportResult {
   warnings: string[];
 }
 
+export type RateLimitSetting = { requestsPerMinute: number; burst: number } | 'unlimited' | null;
+
 export interface ApiKeySummary {
   id: string;
   label: string | null;
   createdAt: string;
   lastUsedAt: string | null;
+  rateLimit: RateLimitSetting;
 }
 
 export interface CreatedApiKey {
   id: string;
   plaintext: string;
   label: string | null;
+  rateLimit: RateLimitSetting;
 }
 
 export type CredentialStatus =

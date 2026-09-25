@@ -37,17 +37,36 @@ describe('gtr apikey', () => {
     expect(created.stdout).toMatch(/^Created API key \S+ \(ci\):\n\S+\n$/);
     expect(created.stderr).toBe('Store this key now; it cannot be shown again.\n');
     const json = await run(c, ['apikey', 'create', '--json']);
-    expect(Object.keys(JSON.parse(json.stdout)).sort()).toEqual(['id', 'label', 'plaintext']);
+    expect(Object.keys(JSON.parse(json.stdout)).sort()).toEqual(['id', 'label', 'plaintext', 'rateLimit']);
   });
 
   it('lists keys and revokes one', async () => {
     const c = cli();
     const key = JSON.parse((await run(c, ['apikey', 'create', '--label', 'ci', '--json'])).stdout);
     const listed = await run(c, ['apikey', 'list']);
-    expect(listed.stdout).toMatch(new RegExp(`^ID\\s+LABEL\\s+CREATED\\s+LAST USED\\n${key.id}\\s+ci\\s+\\S.*\\s+never\\n$`));
+    expect(listed.stdout).toMatch(new RegExp(`^ID\\s+LABEL\\s+RATE LIMIT\\s+CREATED\\s+LAST USED\\n${key.id}\\s+ci\\s+default\\s+\\S.*\\s+never\\n$`));
     expect((await run(c, ['apikey', 'revoke', key.id, '--yes'])).stdout).toBe(`Revoked API key ${key.id}.\n`);
     expect((await run(c, ['apikey', 'list'])).stdout).toBe('No API keys.\n');
     expect((await run(c, ['apikey', 'revoke', key.id, '--yes'])).code).toBe(4);
+  });
+
+  it('sets rate limits on create and update', async () => {
+    const c = cli();
+    const key = JSON.parse((await run(c, ['apikey', 'create', '--rate-limit', '60', '--burst', '10', '--json'])).stdout);
+    expect(key.rateLimit).toEqual({ requestsPerMinute: 60, burst: 10 });
+    expect((await run(c, ['apikey', 'list'])).stdout).toContain('60/min (burst 10)');
+    expect((await run(c, ['apikey', 'update', key.id, '--unlimited'])).stdout).toBe(`API key ${key.id} rate limit: unlimited.\n`);
+    expect((await run(c, ['apikey', 'update', key.id, '--default'])).stdout).toBe(`API key ${key.id} rate limit: default.\n`);
+  });
+
+  it.each([
+    [['apikey', 'create', '--burst', '5']],
+    [['apikey', 'create', '--rate-limit', '5', '--unlimited']],
+    [['apikey', 'create', '--rate-limit', 'abc']],
+    [['apikey', 'update', 'k1']],
+    [['apikey', 'update', 'k1', '--default', '--unlimited']],
+  ])('rejects bad rate-limit flags %j with a usage error', async (args) => {
+    expect((await run(cli(), args)).code).toBe(2);
   });
 });
 

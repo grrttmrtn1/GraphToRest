@@ -217,12 +217,24 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
   describe('api keys', () => {
     it('creates a key exposing only id, plaintext, label and rateLimit, lists it and revokes it', async () => {
       const created = await h.client.createApiKey({ label: 'ci' });
-      expect(Object.keys(created).sort()).toEqual(kind === 'remote' ? ['id', 'label', 'plaintext', 'rateLimit'] : ['id', 'label', 'plaintext']);
+      expect(Object.keys(created).sort()).toEqual(['id', 'label', 'plaintext', 'rateLimit']);
       expect(created.label).toBe('ci');
+      expect(created.rateLimit).toBeNull();
       expect((await h.client.listApiKeys()).map((k) => k.id)).toEqual([created.id]);
       await h.client.revokeApiKey(created.id);
       expect(await h.client.listApiKeys()).toEqual([]);
       expect(await codeOf(h.client.revokeApiKey(created.id))).toBe('NOT_FOUND');
+    });
+  });
+
+  describe('api key rate limits', () => {
+    it('creates with a limit, updates, clears and validates', async () => {
+      const created = await h.client.createApiKey({ label: 'ci', rateLimit: { requestsPerMinute: 30, burst: 30 } });
+      expect(created.rateLimit).toEqual({ requestsPerMinute: 30, burst: 30 });
+      expect((await h.client.updateApiKeyRateLimit(created.id, 'unlimited')).rateLimit).toBe('unlimited');
+      expect((await h.client.updateApiKeyRateLimit(created.id, null)).rateLimit).toBeNull();
+      expect(await codeOf(h.client.updateApiKeyRateLimit(created.id, { requestsPerMinute: 0, burst: 1 }))).toBe('INVALID_INPUT');
+      expect(await codeOf(h.client.updateApiKeyRateLimit('missing', null))).toBe('NOT_FOUND');
     });
   });
 

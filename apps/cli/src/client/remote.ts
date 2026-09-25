@@ -17,6 +17,7 @@ import type {
   GenerationResult,
   ApiKeySummary,
   AdminUserRecord,
+  RateLimitSetting,
 } from './types';
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -136,7 +137,7 @@ export class RemoteClient implements GtrClient {
     return this.request('POST', '/mappings/import', { body: { yaml } });
   }
 
-  createApiKey(input: { label?: string }): Promise<CreatedApiKey> {
+  createApiKey(input: { label?: string; rateLimit?: RateLimitSetting }): Promise<CreatedApiKey> {
     return this.request('POST', '/api-keys', { body: input });
   }
 
@@ -146,6 +147,10 @@ export class RemoteClient implements GtrClient {
 
   async revokeApiKey(id: string): Promise<void> {
     await this.request('DELETE', `/api-keys/${enc(id)}`, { expect: 'none' });
+  }
+
+  updateApiKeyRateLimit(id: string, rateLimit: RateLimitSetting): Promise<ApiKeySummary> {
+    return this.request('PATCH', `/api-keys/${enc(id)}`, { body: { rateLimit } });
   }
 
   createAdminUser(input: { username: string; password: string }): Promise<AdminUserRecord> {

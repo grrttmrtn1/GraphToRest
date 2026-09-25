@@ -13,7 +13,9 @@ import {
   parseConnectionConfig,
   setOutboundPolicy,
   outboundPolicyFromEnv,
+  parseRateLimitSetting,
   type ConnectionRecord,
+  type RateLimitSetting,
 } from '@graphtorest/core';
 import { CliError } from '../errors';
 import type {
@@ -202,9 +204,10 @@ export class EmbeddedClient implements GtrClient {
     return { imported: records.length, warnings };
   }
 
-  async createApiKey(input: { label?: string }): Promise<CreatedApiKey> {
-    const created = this.store.createApiKey({ label: input.label });
-    return { id: created.id, plaintext: created.plaintext, label: created.label };
+  async createApiKey(input: { label?: string; rateLimit?: RateLimitSetting }): Promise<CreatedApiKey> {
+    const rateLimit = input.rateLimit === undefined ? null : parseRateLimitSetting(input.rateLimit);
+    const created = this.store.createApiKey({ label: input.label, rateLimit });
+    return { id: created.id, plaintext: created.plaintext, label: created.label, rateLimit: created.rateLimit };
   }
 
   async listApiKeys() {
@@ -213,6 +216,12 @@ export class EmbeddedClient implements GtrClient {
 
   async revokeApiKey(id: string) {
     if (!this.store.deleteApiKey(id)) throw notFound('API key not found');
+  }
+
+  async updateApiKeyRateLimit(id: string, rateLimit: RateLimitSetting) {
+    const updated = this.store.setApiKeyRateLimit(id, parseRateLimitSetting(rateLimit));
+    if (!updated) throw notFound('API key not found');
+    return updated;
   }
 
   async createAdminUser(input: { username: string; password: string }) {

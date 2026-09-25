@@ -11,7 +11,7 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-const KEY = { id: 'k1', label: 'dev', createdAt: '2026-09-22 10:00:00', lastUsedAt: null };
+const KEY = { id: 'k1', label: 'dev', createdAt: '2026-09-22 10:00:00', lastUsedAt: null, rateLimit: null };
 
 describe('API keys page', () => {
   it('lists keys', async () => {
@@ -59,5 +59,40 @@ describe('API keys page', () => {
     const row = (await screen.findByText('dev')).closest('tr')!;
     fireEvent.click(within(row).getByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/admin/api-keys/k1')).toBe(true));
+  });
+
+  it('shows each key’s rate limit', async () => {
+    mockFetch([SESSION_ROUTE, { path: '/admin/api-keys', body: [{ ...KEY, rateLimit: { requestsPerMinute: 60, burst: 10 } }] }]);
+    renderApp('/api-keys');
+    expect(await screen.findByText('60/min (burst 10)')).toBeTruthy();
+  });
+
+  it('creates a key with a rate limit', async () => {
+    const { calls } = mockFetch([
+      SESSION_ROUTE,
+      { path: '/admin/api-keys', body: [] },
+      { method: 'POST', path: '/admin/api-keys', status: 201, body: { id: 'k2', plaintext: 'k2.s', label: null, rateLimit: { requestsPerMinute: 30, burst: 30 } } },
+    ]);
+    renderApp('/api-keys');
+    await screen.findByText('No API keys yet.');
+    fireEvent.change(screen.getByLabelText('Rate limit (requests/min, empty = server default)'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create API key' }));
+    await screen.findByText('k2.s');
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({ rateLimit: { requestsPerMinute: 30, burst: 30 } });
+  });
+
+  it('edits a key’s rate limit', async () => {
+    const { calls } = mockFetch([
+      SESSION_ROUTE,
+      { path: '/admin/api-keys', body: [KEY] },
+      { method: 'PATCH', path: '/admin/api-keys/k1', body: { ...KEY, rateLimit: 'unlimited' } },
+    ]);
+    renderApp('/api-keys');
+    const row = (await screen.findByText('dev')).closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Edit limit' }));
+    fireEvent.change(screen.getByLabelText('Limit'), { target: { value: 'unlimited' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save limit' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({ rateLimit: 'unlimited' });
   });
 });

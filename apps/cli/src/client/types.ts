@@ -6,10 +6,20 @@ import type {
   RequestLogRecord,
   GenerationResult,
   CredentialStatus,
+  RateLimitSetting,
 } from '@graphtorest/core';
 import type { ModeSource } from '../mode';
 
-export type { ConnectionRecord, MappingRecord, ApiKeySummary, AdminUserRecord, RequestLogRecord, GenerationResult, CredentialStatus };
+export type {
+  ConnectionRecord,
+  MappingRecord,
+  ApiKeySummary,
+  AdminUserRecord,
+  RequestLogRecord,
+  GenerationResult,
+  CredentialStatus,
+  RateLimitSetting,
+};
 
 export interface CreateConnectionInput {
   name: string;
@@ -42,6 +52,7 @@ export interface CreatedApiKey {
   id: string;
   plaintext: string;
   label: string | null;
+  rateLimit: RateLimitSetting;
 }
 
 export interface ImportResult {
@@ -91,9 +102,10 @@ export interface GtrClient {
   exportMappings(options: { connectionId?: string }): Promise<string>;
   importMappings(yaml: string): Promise<ImportResult>;
 
-  createApiKey(input: { label?: string }): Promise<CreatedApiKey>;
+  createApiKey(input: { label?: string; rateLimit?: RateLimitSetting }): Promise<CreatedApiKey>;
   listApiKeys(): Promise<ApiKeySummary[]>;
   revokeApiKey(id: string): Promise<void>;
+  updateApiKeyRateLimit(id: string, rateLimit: RateLimitSetting): Promise<ApiKeySummary>;
 
   createAdminUser(input: { username: string; password: string }): Promise<AdminUserRecord>;
   /** Embedded only: lockout recovery, no remote endpoint exists. */
