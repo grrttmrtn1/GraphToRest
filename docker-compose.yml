@@ -37,6 +37,7 @@ services:
       # (needed when a GraphQL endpoint runs on the same Docker network or LAN).
       OUTBOUND_TIMEOUT_MS: ${OUTBOUND_TIMEOUT_MS:-30000}
       ALLOW_PRIVATE_NETWORK_TARGETS: ${ALLOW_PRIVATE_NETWORK_TARGETS:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
 volumes:

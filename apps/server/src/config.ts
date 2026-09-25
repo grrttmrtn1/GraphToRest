@@ -18,6 +18,8 @@ export interface ServerConfig {
   outboundTimeoutMs: number;
   allowPrivateNetworkTargets: boolean;
   bootstrapAdmin: { username: string; password: string } | null;
+  /** Express `trust proxy`: false (default), true, a hop count, or a comma list of addresses/CIDRs/named ranges. */
+  trustProxy: boolean | number | string;
 }
 
 function isSet(value: string | undefined): value is string {
@@ -63,6 +65,14 @@ function parseBootstrapAdmin(env: NodeJS.ProcessEnv): ServerConfig['bootstrapAdm
   return { username, password };
 }
 
+function parseTrustProxy(value: string | undefined): ServerConfig['trustProxy'] {
+  if (!isSet(value) || value === 'false') return false;
+  if (value === 'true') return true;
+  if (/^\d+$/.test(value)) return Number(value);
+  // Express validates an address list when it is set on the app, which fails startup on a bad value.
+  return value;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const port = parseInteger(env, 'PORT', 3000, 1, 65535);
   const outbound = outboundPolicyFromEnv(env);
@@ -82,5 +92,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     outboundTimeoutMs: outbound.timeoutMs,
     allowPrivateNetworkTargets: outbound.allowPrivateNetworkTargets,
     bootstrapAdmin: parseBootstrapAdmin(env),
+    trustProxy: parseTrustProxy(env.TRUST_PROXY),
   };
 }

@@ -35,10 +35,13 @@ export interface AppDeps {
   loginThrottle?: LoginThrottle;
   rateLimiter?: RateLimiter;
   responseCache?: ResponseCache;
+  /** Express `trust proxy` setting; unset leaves req.ip as the socket address (see TRUST_PROXY in the README). */
+  trustProxy?: boolean | number | string;
 }
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
+  if (deps.trustProxy !== undefined) app.set('trust proxy', deps.trustProxy);
   const logger = deps.logger ?? silentLogger;
   const rateLimiter = deps.rateLimiter ?? new RateLimiter({ defaultLimit: null });
 

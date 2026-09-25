@@ -61,6 +61,7 @@ function main(): void {
     rateLimiter,
     loginThrottle,
     responseCache,
+    trustProxy: config.trustProxy,
   });
 
   warnAboutConfiguration(config, mappingStore, logger, Boolean(managedAuth), webRoot, webDist);

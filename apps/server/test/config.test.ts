@@ -19,6 +19,7 @@ describe('loadConfig', () => {
       outboundTimeoutMs: 30000,
       allowPrivateNetworkTargets: false,
       bootstrapAdmin: null,
+      trustProxy: false,
     });
     expect(config.credentialEncryptionKey).toBeUndefined();
   });
@@ -64,6 +65,7 @@ describe('loadConfig', () => {
       outboundTimeoutMs: 5000,
       allowPrivateNetworkTargets: true,
       bootstrapAdmin: { username: 'root', password: 'correct-horse-battery' },
+      trustProxy: false,
     });
   });
 
@@ -112,5 +114,13 @@ describe('loadConfig', () => {
 
   it('keeps the port in the default public base URL', () => {
     expect(loadConfig({ PORT: '8080' }).publicBaseUrl).toBe('http://localhost:8080');
+  });
+
+  it('parses TRUST_PROXY as a boolean, a hop count, or an address list', () => {
+    expect(loadConfig({ TRUST_PROXY: '' }).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+    expect(loadConfig({ TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    expect(loadConfig({ TRUST_PROXY: 'loopback, 10.0.0.0/8' }).trustProxy).toBe('loopback, 10.0.0.0/8');
   });
 });
