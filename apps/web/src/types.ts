@@ -29,12 +29,15 @@ export interface Mapping {
   cacheTtlSeconds?: number;
 }
 
+/** Only the fields that actually changed should be sent — the server flips a mapping to "manual" whenever any
+ * of route/method/operation/responseTemplate is present, so an unrelated field re-sent unchanged (e.g. a TTL-only
+ * edit) would wrongly flip a generated mapping's source. */
 export interface MappingPatch {
-  method: string;
-  route: string;
-  operation: unknown;
-  responseTemplate: unknown;
-  cacheTtlSeconds: number | null;
+  method?: string;
+  route?: string;
+  operation?: unknown;
+  responseTemplate?: unknown;
+  cacheTtlSeconds?: number | null;
 }
 
 export interface GenerationResult {

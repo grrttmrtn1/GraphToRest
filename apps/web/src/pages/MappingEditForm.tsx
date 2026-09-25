@@ -50,7 +50,21 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
       setLocalError('Cache TTL must be a whole number of seconds from 0 to 86400');
       return;
     }
-    save.mutate({ method, route, operation: parsedOperation.value, responseTemplate, cacheTtlSeconds: ttl === 0 ? null : ttl });
+    // Send only the fields that actually changed: the server treats a present route/method/operation/
+    // responseTemplate as a definitional edit and flips the mapping to "manual", so re-sending an unchanged
+    // field (as a TTL-only edit otherwise would) must not happen.
+    const cacheTtlSeconds = ttl === 0 ? null : ttl;
+    const patch: MappingPatch = {};
+    if (method !== mapping.method) patch.method = method;
+    if (route !== mapping.route) patch.route = route;
+    if (JSON.stringify(parsedOperation.value) !== JSON.stringify(mapping.operation)) patch.operation = parsedOperation.value;
+    if (JSON.stringify(responseTemplate) !== JSON.stringify(mapping.responseTemplate ?? null)) patch.responseTemplate = responseTemplate;
+    if (cacheTtlSeconds !== (mapping.cacheTtlSeconds ?? null)) patch.cacheTtlSeconds = cacheTtlSeconds;
+    if (Object.keys(patch).length === 0) {
+      onDone();
+      return;
+    }
+    save.mutate(patch);
   };
 
   return (

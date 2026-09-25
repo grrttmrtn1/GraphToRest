@@ -61,31 +61,38 @@ describe('mappings tab', () => {
     expect(call.headers['X-Vendor-Token']).toBe('vendor-abc');
   });
 
-  it('saves an edit as a PATCH with parsed JSON', async () => {
+  it('saves an edit as a PATCH containing only the fields that changed', async () => {
     const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, route: '/people/{id}', source: 'manual' } }]);
     fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
     fireEvent.change(screen.getByLabelText('Route'), { target: { value: '/people/{id}' } });
     fireEvent.change(screen.getByLabelText('Response template (JSON, empty for passthrough)'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    // method and operation were left untouched, so they must not be sent (only route and responseTemplate changed).
     expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({
-      method: 'GET',
       route: '/people/{id}',
-      operation: { query: 'user(id: $id) { id }' },
       responseTemplate: null,
-      cacheTtlSeconds: null,
     });
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Save mapping' })).toBeNull());
   });
 
-  it('saves a cache TTL from the edit form', async () => {
-    const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, cacheTtlSeconds: 120, source: 'manual' } }]);
+  it('sends a TTL-only edit as just cacheTtlSeconds, so a generated mapping is not flipped to manual (M3)', async () => {
+    const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, cacheTtlSeconds: 120, source: 'generated' } }]);
     fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
     expect((screen.getByLabelText('Cache TTL (seconds, 0 = off)') as HTMLInputElement).value).toBe('0');
     fireEvent.change(screen.getByLabelText('Cache TTL (seconds, 0 = off)'), { target: { value: '120' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
-    expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ cacheTtlSeconds: 120 });
+    // Nothing else present: route/method/operation/responseTemplate would each flip the mapping to "manual" server-side.
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({ cacheTtlSeconds: 120 });
+  });
+
+  it('sends no PATCH at all when nothing in the form changed', async () => {
+    const { calls } = await openMappingsTab();
+    fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save mapping' })).toBeNull());
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
   });
 
   it('rejects a non-integer cache TTL locally', async () => {
