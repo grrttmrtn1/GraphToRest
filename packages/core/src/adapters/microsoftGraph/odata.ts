@@ -40,7 +40,10 @@ export function decodeCursor(cursor: string): string {
  *
  * Requires: origin exactly `https://graph.microsoft.com`, a path under `/v1.0/` or `/beta/`, and — since this is
  * feasible without restructuring the caller, which already knows the mapping's own request path — that the
- * resource path matches the mapping's own request path (the cursor may only add a query string).
+ * resource path matches the mapping's own request path (the cursor may only add a query string). The path match is
+ * case-insensitive because Graph resource paths are, and Graph may re-case them in `@odata.nextLink`.
+ *
+ * Returns the parsed `url.href`, not the raw input, so the value followed is exactly the value validated.
  */
 export function assertValidGraphCursorUrl(decoded: string, requestPath: string): string {
   let url: URL;
@@ -58,10 +61,10 @@ export function assertValidGraphCursorUrl(decoded: string, requestPath: string):
   }
   const resourcePath = (versionMatch[2] ?? '/').replace(/\/+$/, '') || '/';
   const expectedPath = requestPath.replace(/\/+$/, '') || '/';
-  if (resourcePath !== expectedPath) {
+  if (resourcePath.toLowerCase() !== expectedPath.toLowerCase()) {
     throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
   }
-  return decoded;
+  return url.href;
 }
 
 export function interpolatePath(template: string, params: Record<string, string>): string {

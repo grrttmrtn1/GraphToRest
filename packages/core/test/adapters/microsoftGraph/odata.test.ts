@@ -42,6 +42,21 @@ describe('cursor encode/decode', () => {
 });
 
 describe('assertValidGraphCursorUrl', () => {
+  it('returns the normalized URL rather than the raw decoded text', () => {
+    expect(assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users?$skiptoken=a b', '/users')).toBe(
+      'https://graph.microsoft.com/v1.0/users?$skiptoken=a%20b'
+    );
+  });
+
+  it('matches the host and resource path case-insensitively', () => {
+    expect(() => assertValidGraphCursorUrl('https://GRAPH.microsoft.com/v1.0/Users?$skiptoken=x', '/users')).not.toThrow();
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users/abc/messages', '/users/ABC/messages')).not.toThrow();
+  });
+
+  it('still rejects a different resource path', () => {
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/groups', '/users')).toThrow(GatewayError);
+  });
+
   it('accepts a valid same-path v1.0 next-link', () => {
     expect(assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users?$skiptoken=abc123', '/users')).toBe(
       'https://graph.microsoft.com/v1.0/users?$skiptoken=abc123'
