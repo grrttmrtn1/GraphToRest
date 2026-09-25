@@ -59,7 +59,7 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
         Edit {mapping.method} {mapping.route}
       </h2>
       <p className="muted">Saving marks this mapping as manual, so regeneration skips it unless forced.</p>
-      <form onSubmit={submit} noValidate>
+      <form onSubmit={submit}>
         <label>
           Method
           <input value={method} onChange={(e) => setMethod(e.target.value)} required />
@@ -78,7 +78,7 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
         </label>
         <label>
           Cache TTL (seconds, 0 = off)
-          <input type="number" min={0} max={86400} step={1} value={cacheTtl} onChange={(e) => setCacheTtl(e.target.value)} />
+          <input type="number" min={0} max={86400} step="any" value={cacheTtl} onChange={(e) => setCacheTtl(e.target.value)} />
         </label>
         {localError && (
           <p className="form-error" role="alert">
