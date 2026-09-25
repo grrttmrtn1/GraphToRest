@@ -56,7 +56,7 @@ export function renderApp(initialPath: string) {
   setUnauthorizedHandler(() => queryClient.setQueryData(SESSION_KEY, null));
   const utils = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialPath]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <AppRoutes />
       </MemoryRouter>
     </QueryClientProvider>
