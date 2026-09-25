@@ -33,4 +33,12 @@ describe('isPrivateAddress', () => {
   it('treats unparseable input as private (fail closed)', () => {
     expect(isPrivateAddress('not-an-ip')).toBe(true);
   });
+  it('classifies NAT64 and 6to4 addresses by their embedded IPv4', () => {
+    expect(isPrivateAddress('64:ff9b::a00:1')).toBe(true); // 10.0.0.1
+    expect(isPrivateAddress('64:ff9b::169.254.169.254')).toBe(true);
+    expect(isPrivateAddress('2002:7f00:1::')).toBe(true); // 127.0.0.1
+    expect(isPrivateAddress('2002:a9fe:a9fe:1::1')).toBe(true); // 169.254.169.254
+    expect(isPrivateAddress('64:ff9b::cb00:710a')).toBe(false); // 203.0.113.10
+    expect(isPrivateAddress('2002:cb00:710a::1')).toBe(false);
+  });
 });

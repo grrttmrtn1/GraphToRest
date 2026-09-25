@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import nock from 'nock';
 import { assertOutboundUrlShape, assertOutboundTargetAllowed, outboundFetch } from '../../src/net/outboundUrl';
 import type { OutboundPolicy } from '../../src/net/outboundPolicy';
@@ -21,6 +21,9 @@ async function codeOf(p: Promise<unknown>): Promise<string> {
 }
 
 afterEach(() => nock.cleanAll());
+// Nothing in this file may reach the real network; a missing interceptor must fail rather than connect.
+beforeAll(() => nock.disableNetConnect());
+afterAll(() => nock.enableNetConnect());
 
 describe('assertOutboundUrlShape', () => {
   it('accepts http and https URLs and trims them', () => {
@@ -44,6 +47,10 @@ describe('assertOutboundUrlShape', () => {
 });
 
 describe('assertOutboundTargetAllowed', () => {
+  it('reports an unparseable URL as INVALID_INPUT', async () => {
+    expect(await codeOf(assertOutboundTargetAllowed('not a url', policy()))).toBe('INVALID_INPUT');
+  });
+
   it('allows a public https destination', async () => {
     expect(await codeOf(assertOutboundTargetAllowed('https://api.example.com/x', policy()))).toBe('NO_ERROR');
   });
@@ -97,13 +104,30 @@ describe('assertOutboundTargetAllowed', () => {
 
 describe('outboundFetch', () => {
   it('refuses redirects by default', async () => {
-    nock('https://api.example.com').get('/r').reply(302, '', { location: 'https://169.254.169.254/' });
-    await expect(outboundFetch('https://api.example.com/r', {}, policy())).rejects.toThrow();
+    nock('https://api.example.com').get('/r').reply(302, '', { location: 'https://redirect-target.example/' });
+    const target = nock('https://redirect-target.example').get('/').reply(200, 'followed');
+    await expect(outboundFetch('https://api.example.com/r', {}, policy())).rejects.toThrow(TypeError);
+    expect(target.isDone()).toBe(false);
   });
 
   it('aborts after the policy timeout', async () => {
     nock('https://api.example.com').get('/slow').delay(500).reply(200, 'late');
     await expect(outboundFetch('https://api.example.com/slow', {}, policy({ timeoutMs: 50 }))).rejects.toThrow();
+  });
+
+  it('keeps the policy timeout when the caller passes its own signal', async () => {
+    nock('https://api.example.com').get('/slow2').delay(500).reply(200, 'late');
+    const callerSignal = new AbortController().signal; // never aborted
+    const started = Date.now();
+    await expect(outboundFetch('https://api.example.com/slow2', { signal: callerSignal }, policy({ timeoutMs: 50 }))).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(400);
+  });
+
+  it('still honours the caller signal', async () => {
+    nock('https://api.example.com').get('/slow3').delay(500).reply(200, 'late');
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 20);
+    await expect(outboundFetch('https://api.example.com/slow3', { signal: controller.signal }, policy({ timeoutMs: 5000 }))).rejects.toThrow();
   });
 
   it('does not fetch a blocked destination', async () => {

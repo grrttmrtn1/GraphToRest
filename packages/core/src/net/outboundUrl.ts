@@ -33,7 +33,12 @@ export function assertOutboundUrlShape(value: unknown, field: string, options: {
  * the connection (rebinding) — see the Plan 8 spec §5.5.
  */
 export async function assertOutboundTargetAllowed(url: string, policy: OutboundPolicy = getOutboundPolicy()): Promise<void> {
-  const parsed = new URL(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw invalid('Invalid outbound URL');
+  }
   const host = parsed.hostname.replace(/^\[(.*)\]$/, '$1');
   let addresses: string[];
   if (net.isIP(host)) {
@@ -61,8 +66,12 @@ export async function assertOutboundTargetAllowed(url: string, policy: OutboundP
   }
 }
 
-/** fetch() for admin-configured destinations: destination check, policy timeout, and no redirects unless `init` says otherwise. */
+/**
+ * fetch() for admin-configured destinations: destination check, policy timeout, and no redirects unless `init` says
+ * otherwise. A caller-supplied signal is combined with the policy timeout, never a replacement for it.
+ */
 export async function outboundFetch(url: string, init: RequestInit = {}, policy: OutboundPolicy = getOutboundPolicy()): Promise<Response> {
   await assertOutboundTargetAllowed(url, policy);
-  return fetch(url, { redirect: 'error', ...init, signal: init.signal ?? AbortSignal.timeout(policy.timeoutMs) });
+  const timeout = AbortSignal.timeout(policy.timeoutMs);
+  return fetch(url, { redirect: 'error', ...init, signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
 }

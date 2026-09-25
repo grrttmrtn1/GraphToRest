@@ -43,8 +43,10 @@ function expandV6(ip: string): number[] | null {
 }
 
 /**
- * True for loopback, private, link-local, CGNAT, unspecified and unique-local addresses, including IPv4-mapped and
- * IPv4-compatible IPv6 forms of blocked IPv4 ranges. Unparseable input counts as private (fail closed).
+ * True for loopback, private, link-local, CGNAT, unspecified and unique-local addresses, including IPv4-mapped,
+ * IPv4-compatible, NAT64 (64:ff9b::/96) and 6to4 (2002::/16) IPv6 forms of blocked IPv4 ranges — a NAT64 or 6to4
+ * gateway on the path would otherwise translate them into the blocked IPv4 destination. Unparseable input counts
+ * as private (fail closed).
  */
 export function isPrivateAddress(ip: string): boolean {
   const address = ip.split('%')[0]; // drop an IPv6 zone id
@@ -57,6 +59,10 @@ export function isPrivateAddress(ip: string): boolean {
     // ::ffff:a.b.c.d (mapped) or ::a.b.c.d (compatible, also covers :: and ::1)
     return isBlockedV4(((g[6] << 16) | g[7]) >>> 0);
   }
+  if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) {
+    return isBlockedV4(((g[6] << 16) | g[7]) >>> 0); // 64:ff9b::a.b.c.d NAT64 well-known prefix
+  }
+  if (g[0] === 0x2002) return isBlockedV4(((g[1] << 16) | g[2]) >>> 0); // 2002:AABB:CCDD::/48 6to4
   if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
   if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
   return false;
