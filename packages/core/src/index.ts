@@ -40,8 +40,10 @@ export { exportMappingsYaml, importMappingsYaml } from './mappingEngine/mappingY
 export type { MappingYamlEntry, MappingInput } from './mappingEngine/yamlTransform';
 export type { MappingImportResult } from './mappingEngine/mappingYaml';
 export { parseRouteString } from './mappingEngine/routeString';
-export { parseMappingFields } from './mappingEngine/mappingFields';
+export { parseMappingFields, MAX_CACHE_TTL_SECONDS } from './mappingEngine/mappingFields';
 export type { MappingFields } from './mappingEngine/mappingFields';
+export { ResponseCache, cacheIdentity } from './gateway/ResponseCache';
+export type { ResponseCacheOptions, CacheKeyParts } from './gateway/ResponseCache';
 export { parseManagedCredentials } from './auth/oauthClient';
 export type { ManagedCredentials, OAuthGrant } from './auth/oauthClient';
 export { ManagedTokenService, connectionIdFromAuthorizationError } from './auth/managedTokenService';

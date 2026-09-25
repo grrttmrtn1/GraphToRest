@@ -143,6 +143,18 @@ describe('MappingStore', () => {
     expect(store.updateMapping('nope', { source: 'manual' })).toBeNull();
   });
 
+  it('stores cacheTtlSeconds only when positive and keeps source on TTL-only updates', () => {
+    const conn = store.createConnection({ name: 'ttl', adapterType: 'mock', authMode: 'passthrough' });
+    const m = store.createMapping({ connectionId: conn.id, route: '/t', method: 'GET', operation: {}, cacheTtlSeconds: 60 });
+    expect(m.cacheTtlSeconds).toBe(60);
+    expect(store.getMapping(m.id)!.cacheTtlSeconds).toBe(60);
+    const cleared = store.updateMapping(m.id, { cacheTtlSeconds: null })!;
+    expect(cleared.cacheTtlSeconds).toBeUndefined();
+    expect(cleared.source).toBe('generated');
+    const plain = store.createMapping({ connectionId: conn.id, route: '/p', method: 'GET', operation: {} });
+    expect('cacheTtlSeconds' in plain).toBe(false);
+  });
+
   it('creates an api key whose plaintext verifies against the stored hash', async () => {
     const created = store.createApiKey({ label: 'test key' });
     const found = store.findApiKeyById(created.id);

@@ -185,6 +185,21 @@ describe('DELETE /admin/mappings/:id', () => {
   });
 });
 
+describe('mapping cacheTtlSeconds', () => {
+  it('accepts it on create, updates it without flipping source, and validates it', async () => {
+    const conn = await admin.post('/admin/connections').send({ name: 'ttl-conn', adapterType: 'mock', authMode: 'passthrough' });
+    const created = await admin
+      .post('/admin/mappings')
+      .send({ connectionId: conn.body.id, route: '/ttl', method: 'GET', operation: {}, source: 'generated', cacheTtlSeconds: 60 });
+    expect(created.body).toMatchObject({ cacheTtlSeconds: 60, source: 'generated' });
+    const patched = await admin.patch(`/admin/mappings/${created.body.id}`).send({ cacheTtlSeconds: 5 });
+    expect(patched.body).toMatchObject({ cacheTtlSeconds: 5, source: 'generated' });
+    const edited = await admin.patch(`/admin/mappings/${created.body.id}`).send({ route: '/ttl2' });
+    expect(edited.body).toMatchObject({ cacheTtlSeconds: 5, source: 'manual' });
+    expect((await admin.patch(`/admin/mappings/${created.body.id}`).send({ cacheTtlSeconds: 'soon' })).status).toBe(400);
+  });
+});
+
 describe('YAML export and import', () => {
   it('exports YAML, optionally for one connection', async () => {
     seedConnectionWithMapping('c1', '/one');

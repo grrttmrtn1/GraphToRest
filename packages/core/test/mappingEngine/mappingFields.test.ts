@@ -37,4 +37,11 @@ describe('parseMappingFields', () => {
   it('accepts a valid source', () => {
     expect(parseMappingFields({ source: 'manual' })).toEqual({ source: 'manual' });
   });
+
+  it('validates cacheTtlSeconds', () => {
+    expect(parseMappingFields({ cacheTtlSeconds: 30 }).cacheTtlSeconds).toBe(30);
+    expect(parseMappingFields({ cacheTtlSeconds: 0 }).cacheTtlSeconds).toBeNull();
+    expect(parseMappingFields({ cacheTtlSeconds: null }).cacheTtlSeconds).toBeNull();
+    for (const bad of [-1, 1.5, '30', 86_401]) expect(() => parseMappingFields({ cacheTtlSeconds: bad })).toThrow('cacheTtlSeconds');
+  });
 });

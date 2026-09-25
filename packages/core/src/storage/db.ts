@@ -14,13 +14,12 @@ export function openDb(filePath: string): Database.Database {
   for (const migration of MIGRATIONS) {
     db.exec(migration);
   }
-  ensureConnectionsConfigColumn(db);
+  ensureColumn(db, 'connections', 'config', 'TEXT');
+  ensureColumn(db, 'mappings', 'cache_ttl_seconds', 'INTEGER');
   return db;
 }
 
-function ensureConnectionsConfigColumn(db: Database.Database): void {
-  const columns = db.prepare('PRAGMA table_info(connections)').all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === 'config')) {
-    db.exec('ALTER TABLE connections ADD COLUMN config TEXT');
-  }
+function ensureColumn(db: Database.Database, table: string, column: string, type: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }

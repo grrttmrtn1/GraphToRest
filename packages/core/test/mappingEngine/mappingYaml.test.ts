@@ -150,4 +150,22 @@ describe('importMappingsYaml', () => {
     expect((caught as Error).message).toMatch(/UNIQUE/);
     expect(store.listMappings()).toEqual(before);
   });
+
+  it('round-trips cacheTtlSeconds and clears it when an updated entry omits it', () => {
+    const store = freshStore();
+    const { a: conn } = seed(store);
+    const m = store.createMapping({ connectionId: conn.id, route: '/c', method: 'GET', operation: { query: 'q' }, cacheTtlSeconds: 45 });
+    const yaml = exportMappingsYaml(store, {});
+    expect(yaml).toContain('cacheTtlSeconds: 45');
+    importMappingsYaml(store, yaml.replace('cacheTtlSeconds: 45\n', ''));
+    expect(store.getMapping(m.id)!.cacheTtlSeconds).toBeUndefined();
+  });
+
+  it('rejects an invalid cacheTtlSeconds in YAML', () => {
+    const store = freshStore();
+    const { a: conn } = seed(store);
+    const yaml = ['- connection: ' + conn.name, '  route: "GET /bad"', '  source: manual', '  operation: { query: q }',
+      '  response: { shape: passthrough }', '  auth: inherit', '  cacheTtlSeconds: -5'].join('\n');
+    expect(() => importMappingsYaml(store, yaml)).toThrow('cacheTtlSeconds');
+  });
 });

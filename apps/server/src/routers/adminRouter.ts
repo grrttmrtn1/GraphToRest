@@ -267,12 +267,12 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   });
 
   router.post('/mappings', (req, res) => {
-    const { connectionId, route, method, operation, responseTemplate, source } = req.body ?? {};
+    const { connectionId, route, method, operation, responseTemplate, source, cacheTtlSeconds } = req.body ?? {};
     if (!connectionId || !route || !method || !operation) {
       sendError(res, 400, 'INVALID_INPUT', 'connectionId, route, method, operation required');
       return;
     }
-    const fields = parseMappingFields({ route, method, operation, responseTemplate, source });
+    const fields = parseMappingFields({ route, method, operation, responseTemplate, source, cacheTtlSeconds });
     try {
       res.status(201).json(
         mappingStore.createMapping({
@@ -282,6 +282,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
           operation: fields.operation as Record<string, unknown>,
           responseTemplate: fields.responseTemplate,
           source: fields.source,
+          cacheTtlSeconds: fields.cacheTtlSeconds,
         })
       );
     } catch (err) {
@@ -324,13 +325,10 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
 
   router.patch('/mappings/:id', (req, res) => {
     const fields = parseMappingFields(req.body ?? {});
-    if (
-      fields.route === undefined &&
-      fields.method === undefined &&
-      fields.operation === undefined &&
-      fields.responseTemplate === undefined
-    ) {
-      throw new GatewayError('INVALID_INPUT', 'At least one of route, method, operation, responseTemplate is required', 400);
+    const definitional =
+      fields.route !== undefined || fields.method !== undefined || fields.operation !== undefined || fields.responseTemplate !== undefined;
+    if (!definitional && fields.cacheTtlSeconds === undefined) {
+      throw new GatewayError('INVALID_INPUT', 'At least one of route, method, operation, responseTemplate, cacheTtlSeconds is required', 400);
     }
     try {
       const updated = mappingStore.updateMapping(req.params.id, {
@@ -338,7 +336,9 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         method: fields.method,
         operation: fields.operation,
         responseTemplate: fields.responseTemplate,
-        source: 'manual', // any admin edit flips a mapping to manual (spec §5.2); a body "source" is ignored
+        cacheTtlSeconds: fields.cacheTtlSeconds,
+        // Any definitional edit flips a mapping to manual (spec §5.2); a cache-TTL-only change is operational and keeps the source.
+        source: definitional ? 'manual' : undefined,
       });
       if (!updated) {
         sendError(res, 404, 'NOT_FOUND', 'Mapping not found');

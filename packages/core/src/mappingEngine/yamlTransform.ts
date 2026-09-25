@@ -1,5 +1,6 @@
 import type { MappingRecord } from '../storage/MappingStore';
 import { parseRouteString } from './routeString';
+import { MAX_CACHE_TTL_SECONDS } from './mappingFields';
 
 export interface MappingYamlEntry {
   id?: string;
@@ -9,6 +10,7 @@ export interface MappingYamlEntry {
   operation: Record<string, unknown>;
   response: { shape: 'passthrough' | 'template'; template?: Record<string, string> };
   auth: string;
+  cacheTtlSeconds?: number;
 }
 
 export interface MappingInput {
@@ -18,6 +20,7 @@ export interface MappingInput {
   method: string;
   operation: Record<string, unknown>;
   responseTemplate: Record<string, string> | null;
+  cacheTtlSeconds: number | null;
 }
 
 export function mappingToYamlEntry(mapping: MappingRecord, connectionName: string): MappingYamlEntry {
@@ -29,6 +32,7 @@ export function mappingToYamlEntry(mapping: MappingRecord, connectionName: strin
     operation: mapping.operation,
     response: mapping.responseTemplate ? { shape: 'template', template: mapping.responseTemplate } : { shape: 'passthrough' },
     auth: 'inherit',
+    ...(mapping.cacheTtlSeconds ? { cacheTtlSeconds: mapping.cacheTtlSeconds } : {}),
   };
 }
 
@@ -52,6 +56,10 @@ export function yamlEntryToMappingInput(entry: MappingYamlEntry, connectionId: s
       throw new Error(`Mapping "${entry.route}" has response shape "template" but no valid string-to-string "template" map`);
     }
   }
+  const ttl = entry.cacheTtlSeconds;
+  if (ttl !== undefined && (typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl < 0 || ttl > MAX_CACHE_TTL_SECONDS)) {
+    throw new Error(`Mapping "${entry.route}" has an invalid cacheTtlSeconds (expected an integer from 0 to ${MAX_CACHE_TTL_SECONDS})`);
+  }
   return {
     id: entry.id,
     connectionId,
@@ -59,5 +67,6 @@ export function yamlEntryToMappingInput(entry: MappingYamlEntry, connectionId: s
     method,
     operation,
     responseTemplate: response.shape === 'template' ? (response.template ?? null) : null,
+    cacheTtlSeconds: ttl ? ttl : null,
   };
 }

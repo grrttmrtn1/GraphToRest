@@ -129,6 +129,7 @@ export class EmbeddedClient implements GtrClient {
       method: input.method,
       operation: input.operation,
       responseTemplate: input.responseTemplate,
+      cacheTtlSeconds: input.cacheTtlSeconds,
     });
     try {
       return this.store.createMapping({
@@ -137,6 +138,7 @@ export class EmbeddedClient implements GtrClient {
         method: fields.method!,
         operation: fields.operation!,
         responseTemplate: fields.responseTemplate ?? null,
+        cacheTtlSeconds: fields.cacheTtlSeconds,
         source: 'manual',
       });
     } catch (err) {
@@ -153,13 +155,10 @@ export class EmbeddedClient implements GtrClient {
 
   async updateMapping(id: string, patch: MappingPatch) {
     const fields = parseMappingFields({ ...patch });
-    if (
-      fields.route === undefined &&
-      fields.method === undefined &&
-      fields.operation === undefined &&
-      fields.responseTemplate === undefined
-    ) {
-      throw invalid('At least one of route, method, operation, responseTemplate is required');
+    const definitional =
+      fields.route !== undefined || fields.method !== undefined || fields.operation !== undefined || fields.responseTemplate !== undefined;
+    if (!definitional && fields.cacheTtlSeconds === undefined) {
+      throw invalid('At least one of route, method, operation, responseTemplate, cacheTtlSeconds is required');
     }
     let updated;
     try {
@@ -168,7 +167,9 @@ export class EmbeddedClient implements GtrClient {
         method: fields.method,
         operation: fields.operation,
         responseTemplate: fields.responseTemplate,
-        source: 'manual', // any admin edit flips a mapping to manual (spec §5.2)
+        cacheTtlSeconds: fields.cacheTtlSeconds,
+        // Any definitional edit flips a mapping to manual (spec §5.2); a cache-TTL-only change is operational and keeps the source.
+        source: definitional ? 'manual' : undefined,
       });
     } catch (err) {
       if (sqliteCode(err) === 'SQLITE_CONSTRAINT_UNIQUE') throw new CliError('CONFLICT', 'A mapping with this route and method already exists');

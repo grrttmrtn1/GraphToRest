@@ -21,6 +21,8 @@ export interface MappingRecord {
   operation: Record<string, unknown>;
   responseTemplate: Record<string, string> | null;
   source: 'generated' | 'manual';
+  /** Present only when response caching is enabled for this mapping. */
+  cacheTtlSeconds?: number;
 }
 
 export interface ApiKeyRecord {
@@ -105,10 +107,14 @@ interface MappingRow {
   operation: string;
   responseTemplate: string | null;
   source: 'generated' | 'manual';
+  cacheTtlSeconds: number | null;
 }
 
 const MAPPING_COLUMNS =
-  'id, connection_id as connectionId, route, method, operation, response_template as responseTemplate, source';
+  'id, connection_id as connectionId, route, method, operation, response_template as responseTemplate, source, cache_ttl_seconds as cacheTtlSeconds';
+
+/** Normalizes a caller-supplied TTL to what the DB stores: a positive integer, or null (= caching off). */
+const ttlColumn = (ttl: number | null | undefined) => (ttl && ttl > 0 ? ttl : null);
 
 function mapConnectionRow(row: ConnectionRow): ConnectionRecord {
   return {
@@ -129,6 +135,7 @@ function mapMappingRow(row: MappingRow): MappingRecord {
     operation: JSON.parse(row.operation),
     responseTemplate: row.responseTemplate ? JSON.parse(row.responseTemplate) : null,
     source: row.source,
+    ...(row.cacheTtlSeconds ? { cacheTtlSeconds: row.cacheTtlSeconds } : {}),
   };
 }
 
@@ -196,13 +203,15 @@ export class MappingStore {
     operation: Record<string, unknown>;
     responseTemplate?: Record<string, string> | null;
     source?: 'generated' | 'manual';
+    cacheTtlSeconds?: number | null;
   }): MappingRecord {
     const id = crypto.randomUUID();
     const source = input.source ?? 'generated';
     const responseTemplate = input.responseTemplate ?? null;
+    const ttl = ttlColumn(input.cacheTtlSeconds);
     this.db
       .prepare(
-        'INSERT INTO mappings (id, connection_id, route, method, operation, response_template, source) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO mappings (id, connection_id, route, method, operation, response_template, source, cache_ttl_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
       .run(
         id,
@@ -211,7 +220,8 @@ export class MappingStore {
         input.method,
         JSON.stringify(input.operation),
         responseTemplate ? JSON.stringify(responseTemplate) : null,
-        source
+        source,
+        ttl
       );
     return {
       id,
@@ -221,6 +231,7 @@ export class MappingStore {
       operation: input.operation,
       responseTemplate,
       source,
+      ...(ttl ? { cacheTtlSeconds: ttl } : {}),
     };
   }
 
@@ -248,11 +259,13 @@ export class MappingStore {
       method?: string;
       operation?: Record<string, unknown>;
       responseTemplate?: Record<string, string> | null;
-      source: 'generated' | 'manual';
+      source?: 'generated' | 'manual';
+      cacheTtlSeconds?: number | null;
     }
   ): MappingRecord | null {
     const existing = this.getMapping(id);
     if (!existing) return null;
+    const ttl = patch.cacheTtlSeconds !== undefined ? ttlColumn(patch.cacheTtlSeconds) : (existing.cacheTtlSeconds ?? null);
     const next: MappingRecord = {
       id: existing.id,
       connectionId: existing.connectionId,
@@ -260,16 +273,18 @@ export class MappingStore {
       method: patch.method ?? existing.method,
       operation: patch.operation ?? existing.operation,
       responseTemplate: patch.responseTemplate !== undefined ? patch.responseTemplate : existing.responseTemplate,
-      source: patch.source,
+      source: patch.source ?? existing.source,
+      ...(ttl ? { cacheTtlSeconds: ttl } : {}),
     };
     this.db
-      .prepare('UPDATE mappings SET route = ?, method = ?, operation = ?, response_template = ?, source = ? WHERE id = ?')
+      .prepare('UPDATE mappings SET route = ?, method = ?, operation = ?, response_template = ?, source = ?, cache_ttl_seconds = ? WHERE id = ?')
       .run(
         next.route,
         next.method,
         JSON.stringify(next.operation),
         next.responseTemplate ? JSON.stringify(next.responseTemplate) : null,
         next.source,
+        ttl,
         id
       );
     return next;

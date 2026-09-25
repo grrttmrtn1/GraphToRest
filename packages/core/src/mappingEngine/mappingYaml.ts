@@ -103,6 +103,7 @@ function applyWrites(store: MappingStore, resolved: ResolvedWrite[]): MappingRec
         method: item.input.method,
         operation: item.input.operation,
         responseTemplate: item.input.responseTemplate,
+        cacheTtlSeconds: item.input.cacheTtlSeconds,
         source: 'manual',
       });
       if (!updated) throw invalid(`No mapping with id ${item.id} to update (from YAML import)`);
@@ -116,6 +117,7 @@ function applyWrites(store: MappingStore, resolved: ResolvedWrite[]): MappingRec
         method: item.input.method,
         operation: item.input.operation,
         responseTemplate: item.input.responseTemplate,
+        cacheTtlSeconds: item.input.cacheTtlSeconds,
         source: 'manual',
       })
     );

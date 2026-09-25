@@ -59,6 +59,7 @@ describe('yamlEntryToMappingInput', () => {
       method: 'GET',
       operation: { query: 'user(id: $id) { id }' },
       responseTemplate: { id: '$.id' },
+      cacheTtlSeconds: null,
     });
   });
 

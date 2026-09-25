@@ -34,6 +34,7 @@ export interface CreateMappingInput {
   route: string;
   operation: Record<string, unknown>;
   responseTemplate?: Record<string, string> | null;
+  cacheTtlSeconds?: number | null;
 }
 
 export interface MappingPatch {
@@ -41,6 +42,7 @@ export interface MappingPatch {
   route?: string;
   operation?: Record<string, unknown>;
   responseTemplate?: Record<string, string> | null;
+  cacheTtlSeconds?: number | null;
 }
 
 export interface GenerateOptions {
