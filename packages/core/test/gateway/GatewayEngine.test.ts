@@ -6,6 +6,7 @@ import { openDb } from '../../src/storage/db';
 import { MappingStore } from '../../src/storage/MappingStore';
 import { GatewayEngine } from '../../src/gateway/GatewayEngine';
 import { GatewayError } from '../../src/gateway/errors';
+import { ResponseCache } from '../../src/gateway/ResponseCache';
 import { registerAdapter } from '../../src/adapters/registry';
 import { MockAdapter } from '../../src/adapters/MockAdapter';
 import type { Adapter, AuthContext } from '../../src/adapters/Adapter';
@@ -212,5 +213,48 @@ describe('GatewayEngine.handle request context', () => {
     await engine.handle('GET', '/spy3/1');
 
     expect(received).toEqual([{ endpoint: 'https://example.com/graphql' }]);
+  });
+});
+
+describe('GatewayEngine response caching', () => {
+  it('serves a cached GET without calling the adapter again and reports HIT/MISS and latency', async () => {
+    let calls = 0;
+    registerAdapter('counting', () => ({
+      type: 'counting',
+      introspect: async () => ({}),
+      generateMappings: async () => [],
+      execute: async (_op, params) => ({ n: ++calls, id: params.id }),
+    }));
+    const conn = store.createConnection({ name: 'cc', adapterType: 'counting', authMode: 'managed' });
+    store.createMapping({ connectionId: conn.id, route: '/c/{id}', method: 'GET', operation: {}, cacheTtlSeconds: 60 });
+    const cache = new ResponseCache({ maxEntries: 10, maxTtlSeconds: 300 });
+    const engine = new GatewayEngine(store, { getAccessToken: async () => 'managed-token' }, cache);
+    const statuses: string[] = [];
+    const latencies: number[] = [];
+    const hooks = { onCacheStatus: (s: string) => statuses.push(s), onVendorLatency: (ms: number) => latencies.push(ms) };
+    expect(await engine.handle('GET', '/c/1', {}, {}, hooks)).toEqual({ n: 1, id: '1' });
+    expect(await engine.handle('GET', '/c/1', {}, {}, hooks)).toEqual({ n: 1, id: '1' });
+    expect(await engine.handle('GET', '/c/2', {}, {}, hooks)).toEqual({ n: 2, id: '2' });
+    expect(statuses).toEqual(['MISS', 'HIT', 'MISS']);
+    expect(latencies).toHaveLength(2);
+  });
+
+  it('does not cache failures', async () => {
+    let fail = true;
+    registerAdapter('flaky', () => ({
+      type: 'flaky',
+      introspect: async () => ({}),
+      generateMappings: async () => [],
+      execute: async () => {
+        if (fail) throw new GatewayError('VENDOR_ERROR', 'down', 502);
+        return { ok: true };
+      },
+    }));
+    const conn = store.createConnection({ name: 'fl', adapterType: 'flaky', authMode: 'passthrough' });
+    store.createMapping({ connectionId: conn.id, route: '/f', method: 'GET', operation: {}, cacheTtlSeconds: 60 });
+    const engine = new GatewayEngine(store, undefined, new ResponseCache({ maxEntries: 10, maxTtlSeconds: 300 }));
+    await expect(engine.handle('GET', '/f')).rejects.toThrow('down');
+    fail = false;
+    expect(await engine.handle('GET', '/f')).toEqual({ ok: true });
   });
 });

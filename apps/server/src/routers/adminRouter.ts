@@ -18,6 +18,7 @@ import {
   parseConnectionConfig,
   redactVendorText,
   parseRateLimitSetting,
+  type ResponseCache,
 } from '@graphtorest/core';
 import { createAdminAuth } from '../middleware/adminAuth';
 import { parseCookies, sessionCookie, ADMIN_SESSION_COOKIE } from '../middleware/cookies';
@@ -30,6 +31,7 @@ export interface AdminRouterOptions {
   webUiRedirects?: boolean;
   logger?: Logger;
   loginThrottle?: LoginThrottle;
+  responseCache?: ResponseCache;
 }
 
 /** Sends an error envelope and records the code so the request logger can report it. */
@@ -44,6 +46,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   const requireAdmin = createAdminAuth(mappingStore, { publicBaseUrl: options.publicBaseUrl });
   const secureCookies = (options.publicBaseUrl ?? '').startsWith('https://');
   const loginThrottle = options.loginThrottle ?? new LoginThrottle();
+  const cache = options.responseCache;
 
   const requireManagedAuth = (): ManagedTokenService => {
     if (!options.managedAuth) {
@@ -116,6 +119,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         throw new GatewayError('INVALID_INPUT', '"code" and "state" query parameters are required', 400);
       }
       ({ connectionId } = await managedAuth.completeAuthorization(state, code));
+      cache?.evictConnection(connectionId);
       if (options.webUiRedirects) {
         res.redirect(302, `/connections/${encodeURIComponent(connectionId)}?oauth=success`);
         return;
@@ -188,7 +192,9 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   router.put('/connections/:id/credentials', (req, res) => {
     const managedAuth = requireManagedAuth();
     const connection = findManagedConnection(req.params.id);
-    res.json(managedAuth.saveCredentials(connection, req.body));
+    const result = managedAuth.saveCredentials(connection, req.body);
+    cache?.evictConnection(connection.id);
+    res.json(result);
   });
 
   router.get('/connections/:id/credentials', (req, res) => {
@@ -236,6 +242,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     if (!mappingStore.getConnection(connectionId)) throw new GatewayError('NOT_FOUND', 'Connection not found', 404);
     options.managedAuth?.clearCredentials(connectionId); // drop cached tokens and pending authorizations first
     mappingStore.deleteConnection(connectionId);
+    cache?.evictConnection(connectionId);
     res.status(204).end();
   });
 
@@ -243,6 +250,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     const managedAuth = requireManagedAuth();
     const connection = findManagedConnection(req.params.id);
     managedAuth.clearCredentials(connection.id);
+    cache?.evictConnection(connection.id);
     res.status(204).end();
   });
 
@@ -257,6 +265,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     try {
       const authContext = await buildAuthContext(connection, vendorToken, options.managedAuth);
       const result = await generateAndPersistMappings(mappingStore, connection, authContext, { force });
+      cache?.evictConnection(connection.id);
       res.json(result);
     } catch (err) {
       if (!(err instanceof GatewayError)) logger.error('unhandled_error', { error: err });
@@ -315,11 +324,13 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
     const { yaml } = req.body ?? {};
     if (typeof yaml !== 'string') throw new GatewayError('INVALID_INPUT', '"yaml" must be a string', 400);
     const { records, warnings } = importMappingsYaml(mappingStore, yaml);
+    cache?.clear();
     res.json({ imported: records.length, warnings });
   });
 
   router.delete('/mappings/:id', (req, res) => {
     if (!mappingStore.deleteMapping(req.params.id)) throw new GatewayError('NOT_FOUND', 'Mapping not found', 404);
+    cache?.evictMapping(req.params.id);
     res.status(204).end();
   });
 
@@ -344,6 +355,7 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         sendError(res, 404, 'NOT_FOUND', 'Mapping not found');
         return;
       }
+      cache?.evictMapping(req.params.id);
       res.json(updated);
     } catch (err) {
       const code = (err as { code?: string })?.code;

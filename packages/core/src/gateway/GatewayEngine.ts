@@ -5,6 +5,7 @@ import { matchRoute } from './matchRoute';
 import { GatewayError } from './errors';
 import { buildAuthContext } from '../auth/authContext';
 import type { AccessTokenProvider } from '../auth/managedTokenService';
+import { ResponseCache, cacheIdentity } from './ResponseCache';
 
 export interface ResolvedRequest {
   mapping: MappingRecord;
@@ -14,10 +15,18 @@ export interface ResolvedRequest {
 export interface GatewayHooks {
   /** Called once the request has been matched to a mapping, before anything that can fail. */
   onMatch?: (mapping: MappingRecord) => void;
+  /** Called for cacheable requests only: HIT when served from the cache, MISS when the vendor is called. */
+  onCacheStatus?: (status: 'HIT' | 'MISS') => void;
+  /** Milliseconds spent in the adapter call (reported even when it throws). */
+  onVendorLatency?: (ms: number) => void;
 }
 
 export class GatewayEngine {
-  constructor(private mappingStore: MappingStore, private tokenProvider?: AccessTokenProvider) {}
+  constructor(
+    private mappingStore: MappingStore,
+    private tokenProvider?: AccessTokenProvider,
+    private cache?: ResponseCache
+  ) {}
 
   resolve(method: string, path: string): ResolvedRequest | null {
     for (const mapping of this.mappingStore.listMappings()) {
@@ -45,11 +54,40 @@ export class GatewayEngine {
     if (!connection) {
       throw new GatewayError('CONNECTION_NOT_FOUND', `Connection ${mapping.connectionId} not found`, 500);
     }
+
+    // Only successful GETs are cached; the key always includes whose data it is (see cacheIdentity).
+    const ttlSeconds = this.cache && method.toUpperCase() === 'GET' ? this.cache.ttlFor(mapping.cacheTtlSeconds) : 0;
+    const cacheKey =
+      ttlSeconds > 0
+        ? ResponseCache.key({
+            mappingId: mapping.id,
+            path,
+            query: request.query ?? {},
+            identity: cacheIdentity(connection, incomingAuth.vendorToken),
+          })
+        : undefined;
+    if (cacheKey) {
+      const cached = this.cache!.get(cacheKey);
+      if (cached !== undefined) {
+        hooks.onCacheStatus?.('HIT');
+        return cached;
+      }
+      hooks.onCacheStatus?.('MISS');
+    }
+
     const adapter = createAdapter(connection.adapterType);
     const operation = resolveVariables(mapping.operation, params);
     const authContext = await buildAuthContext(connection, incomingAuth.vendorToken, this.tokenProvider);
-    const raw = await adapter.execute(operation, params, authContext, request);
-    return shapeResponse(raw, mapping.responseTemplate);
+    const started = performance.now();
+    let raw: unknown;
+    try {
+      raw = await adapter.execute(operation, params, authContext, request);
+    } finally {
+      hooks.onVendorLatency?.(Math.round(performance.now() - started));
+    }
+    const shaped = shapeResponse(raw, mapping.responseTemplate);
+    if (cacheKey) this.cache!.set(cacheKey, shaped, { mappingId: mapping.id, connectionId: connection.id, ttlSeconds });
+    return shaped;
   }
 }
 

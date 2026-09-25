@@ -16,6 +16,13 @@ export function createApiRouter(gatewayEngine: GatewayEngine, logger: Logger = s
             res.locals.connectionId = mapping.connectionId;
             res.locals.mappingId = mapping.id;
           },
+          onCacheStatus: (status) => {
+            res.locals.cache = status;
+            res.setHeader('X-Cache', status);
+          },
+          onVendorLatency: (ms) => {
+            res.locals.vendorLatencyMs = ms;
+          },
         }
       );
       res.json(result);

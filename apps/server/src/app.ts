@@ -9,6 +9,7 @@ import {
   type OpenApiGenerator,
   type ManagedTokenService,
   type Logger,
+  type ResponseCache,
 } from '@graphtorest/core';
 import { createApiKeyAuth } from './middleware/apiKeyAuth';
 import { createActivityLogger, DEFAULT_ACTIVITY_RETENTION } from './middleware/activityLog';
@@ -33,6 +34,7 @@ export interface AppDeps {
   logger?: Logger;
   loginThrottle?: LoginThrottle;
   rateLimiter?: RateLimiter;
+  responseCache?: ResponseCache;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -68,6 +70,7 @@ export function createApp(deps: AppDeps): Express {
         webUiRedirects: deps.webRoot !== undefined,
         logger,
         loginThrottle: deps.loginThrottle,
+        responseCache: deps.responseCache,
       })
     );
   }

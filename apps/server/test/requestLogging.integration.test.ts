@@ -41,6 +41,7 @@ describe('request_completed log lines', () => {
     const [line] = completed();
     expect(line).toMatchObject({ level: 'info', kind: 'api', method: 'GET', path: '/api/users/7', status: 200, apiKeyId: key.body.id, connectionId: conn.body.id });
     expect(typeof line.durationMs).toBe('number');
+    expect(typeof line.vendorLatencyMs).toBe('number');
     const text = JSON.stringify(lines);
     expect(text).not.toContain('shh');
     expect(text).not.toContain('vendor-tok');

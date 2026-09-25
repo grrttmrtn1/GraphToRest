@@ -10,6 +10,7 @@ import {
   registerDefaultAdapters,
   createLogger,
   setOutboundPolicy,
+  ResponseCache,
 } from '@graphtorest/core';
 import { loadConfig } from './config';
 import { createApp } from './app';
@@ -24,7 +25,8 @@ const mappingStore = new MappingStore(db);
 const managedAuth = config.credentialEncryptionKey
   ? new ManagedTokenService(mappingStore, new CredentialCipher(config.credentialEncryptionKey))
   : undefined;
-const gatewayEngine = new GatewayEngine(mappingStore, managedAuth);
+const responseCache = new ResponseCache({ maxEntries: config.cacheMaxEntries, maxTtlSeconds: config.cacheMaxTtlSeconds });
+const gatewayEngine = new GatewayEngine(mappingStore, managedAuth, responseCache);
 const openApiGenerator = new OpenApiGenerator();
 
 // apps/server/dist/index.js → apps/web/dist (same layout in the Docker image).
@@ -46,6 +48,7 @@ const app = createApp({
   webRoot,
   logger,
   rateLimiter,
+  responseCache,
 });
 
 if (!managedAuth) {
