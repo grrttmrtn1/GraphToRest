@@ -16,6 +16,7 @@ describe('loadConfig', () => {
       rateLimitDefault: null,
       cacheMaxTtlSeconds: 300,
       cacheMaxEntries: 1000,
+      cacheMaxBytes: 52428800,
       outboundTimeoutMs: 30000,
       allowPrivateNetworkTargets: false,
       bootstrapAdmin: null,
@@ -63,6 +64,7 @@ describe('loadConfig', () => {
       rateLimitDefault: { requestsPerMinute: 60, burst: 20 },
       cacheMaxTtlSeconds: 60,
       cacheMaxEntries: 0,
+      cacheMaxBytes: 52428800,
       outboundTimeoutMs: 5000,
       allowPrivateNetworkTargets: true,
       bootstrapAdmin: { username: 'root', password: 'correct-horse-battery' },
@@ -130,5 +132,11 @@ describe('loadConfig', () => {
     expect(loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '0' }).apiAuthFailuresPerMinute).toBe(0);
     expect(loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '120' }).apiAuthFailuresPerMinute).toBe(120);
     expect(() => loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '-1' })).toThrow(/API_AUTH_FAILURES_PER_MINUTE/);
+  });
+
+  it('parses CACHE_MAX_BYTES (0 disables the byte bound)', () => {
+    expect(loadConfig({ CACHE_MAX_BYTES: '0' }).cacheMaxBytes).toBe(0);
+    expect(loadConfig({ CACHE_MAX_BYTES: '1048576' }).cacheMaxBytes).toBe(1048576);
+    expect(() => loadConfig({ CACHE_MAX_BYTES: 'lots' })).toThrow(/CACHE_MAX_BYTES/);
   });
 });

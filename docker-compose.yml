@@ -33,6 +33,7 @@ services:
       # Upper bound for per-mapping response-cache TTLs, and the cache size (0 disables caching).
       CACHE_MAX_TTL_SECONDS: ${CACHE_MAX_TTL_SECONDS:-300}
       CACHE_MAX_ENTRIES: ${CACHE_MAX_ENTRIES:-1000}
+      CACHE_MAX_BYTES: ${CACHE_MAX_BYTES:-52428800}
       # Outbound GraphQL/OAuth requests: timeout, and whether private/loopback/link-local destinations are allowed
       # (needed when a GraphQL endpoint runs on the same Docker network or LAN).
       OUTBOUND_TIMEOUT_MS: ${OUTBOUND_TIMEOUT_MS:-30000}

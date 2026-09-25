@@ -75,4 +75,49 @@ describe('ResponseCache', () => {
     cache.set('b', undefined, meta(60));
     expect(cache.size).toBe(0);
   });
+
+  it('evicts least recently used entries to stay within maxBytes', () => {
+    const cache = new ResponseCache({ maxEntries: 100, maxTtlSeconds: 60, maxBytes: 25 });
+    const meta = { mappingId: 'm', connectionId: 'c', ttlSeconds: 60 };
+    cache.set('a', 'x'.repeat(8), meta); // '"xxxxxxxx"' = 10 bytes
+    cache.set('b', 'y'.repeat(8), meta);
+    cache.get('a'); // a is now most recently used
+    cache.set('c', 'z'.repeat(8), meta); // 30 bytes > 25: evict b
+    expect(cache.get('b')).toBeUndefined();
+    expect(cache.get('a')).toBe('xxxxxxxx');
+    expect(cache.get('c')).toBe('zzzzzzzz');
+    expect(cache.bytes).toBe(20);
+  });
+
+  it('skips an entry larger than maxBytes without flushing the others', () => {
+    const cache = new ResponseCache({ maxEntries: 100, maxTtlSeconds: 60, maxBytes: 25 });
+    const meta = { mappingId: 'm', connectionId: 'c', ttlSeconds: 60 };
+    cache.set('a', 'x'.repeat(8), meta);
+    cache.set('huge', 'h'.repeat(100), meta);
+    expect(cache.get('huge')).toBeUndefined();
+    expect(cache.get('a')).toBe('xxxxxxxx');
+    expect(cache.bytes).toBe(10);
+  });
+
+  it('keeps the byte total in step with evictions and replacements', () => {
+    const cache = new ResponseCache({ maxEntries: 100, maxTtlSeconds: 60, maxBytes: 1000 });
+    cache.set('a', 'x'.repeat(8), { mappingId: 'm1', connectionId: 'c', ttlSeconds: 60 });
+    cache.set('a', 'x'.repeat(18), { mappingId: 'm1', connectionId: 'c', ttlSeconds: 60 });
+    expect(cache.bytes).toBe(20);
+    cache.set('b', 'y', { mappingId: 'm2', connectionId: 'c', ttlSeconds: 60 });
+    cache.evictMapping('m1');
+    expect(cache.bytes).toBe(3);
+    cache.clear();
+    expect(cache.bytes).toBe(0);
+  });
+
+  it('ignores a write that started before an eviction (stale epoch)', () => {
+    const cache = new ResponseCache({ maxEntries: 100, maxTtlSeconds: 60 });
+    const epoch = cache.epoch;
+    cache.evictMapping('m');
+    cache.set('k', 'stale', { mappingId: 'm', connectionId: 'c', ttlSeconds: 60, epoch });
+    expect(cache.get('k')).toBeUndefined();
+    cache.set('k', 'fresh', { mappingId: 'm', connectionId: 'c', ttlSeconds: 60, epoch: cache.epoch });
+    expect(cache.get('k')).toBe('fresh');
+  });
 });

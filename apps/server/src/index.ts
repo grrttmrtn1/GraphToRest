@@ -39,7 +39,11 @@ function main(): void {
   const managedAuth = config.credentialEncryptionKey
     ? new ManagedTokenService(mappingStore, new CredentialCipher(config.credentialEncryptionKey))
     : undefined;
-  const responseCache = new ResponseCache({ maxEntries: config.cacheMaxEntries, maxTtlSeconds: config.cacheMaxTtlSeconds });
+  const responseCache = new ResponseCache({
+    maxEntries: config.cacheMaxEntries,
+    maxTtlSeconds: config.cacheMaxTtlSeconds,
+    maxBytes: config.cacheMaxBytes,
+  });
   const gatewayEngine = new GatewayEngine(mappingStore, managedAuth, responseCache);
   const rateLimiter = new RateLimiter({ defaultLimit: config.rateLimitDefault });
   const loginThrottle = new LoginThrottle();

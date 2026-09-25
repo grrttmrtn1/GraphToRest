@@ -66,6 +66,7 @@ export class GatewayEngine {
             identity: cacheIdentity(connection, incomingAuth.vendorToken),
           })
         : undefined;
+    const cacheEpoch = this.cache?.epoch;
     if (cacheKey) {
       const cached = this.cache!.get(cacheKey);
       if (cached !== undefined) {
@@ -86,7 +87,7 @@ export class GatewayEngine {
       hooks.onVendorLatency?.(Math.round(performance.now() - started));
     }
     const shaped = shapeResponse(raw, mapping.responseTemplate);
-    if (cacheKey) this.cache!.set(cacheKey, shaped, { mappingId: mapping.id, connectionId: connection.id, ttlSeconds });
+    if (cacheKey) this.cache!.set(cacheKey, shaped, { mappingId: mapping.id, connectionId: connection.id, ttlSeconds, epoch: cacheEpoch });
     return shaped;
   }
 }

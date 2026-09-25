@@ -15,6 +15,7 @@ export interface ServerConfig {
   rateLimitDefault: { requestsPerMinute: number; burst: number } | null;
   cacheMaxTtlSeconds: number;
   cacheMaxEntries: number;
+  cacheMaxBytes: number;
   outboundTimeoutMs: number;
   allowPrivateNetworkTargets: boolean;
   bootstrapAdmin: { username: string; password: string } | null;
@@ -90,6 +91,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     rateLimitDefault: parseRateLimitDefault(env),
     cacheMaxTtlSeconds: parseInteger(env, 'CACHE_MAX_TTL_SECONDS', 300, 0),
     cacheMaxEntries: parseInteger(env, 'CACHE_MAX_ENTRIES', 1000, 0),
+    cacheMaxBytes: parseInteger(env, 'CACHE_MAX_BYTES', 52_428_800, 0),
     outboundTimeoutMs: outbound.timeoutMs,
     allowPrivateNetworkTargets: outbound.allowPrivateNetworkTargets,
     bootstrapAdmin: parseBootstrapAdmin(env),
