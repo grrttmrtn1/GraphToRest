@@ -2,15 +2,20 @@
   "name": "graphtorest",
   "private": true,
   "version": "0.1.0",
-  "engines": { "node": ">=20" },
-  "workspaces": ["packages/*", "apps/*"],
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build": "npm run build -w @graphtorest/core && npm run build --workspaces --if-present",
     "test": "npm run build -w @graphtorest/core && vitest run"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^4.1.11"
   }
 }
