@@ -109,9 +109,25 @@ describe('response caching end-to-end', () => {
   it('never caches non-GET mappings', async () => {
     const { connectionId, apiKey } = await seedGraphQLConnection();
     await admin.post('/admin/mappings').send({ connectionId, route: '/do', method: 'POST', operation: { query: 'mutation { do }' }, cacheTtlSeconds: 60 });
-    nock(HOST).post('/graphql').twice().reply(200, { data: { do: true } });
-    const res = await request(app).post('/api/do').set('Authorization', `Bearer ${apiKey}`).set('X-Vendor-Token', 't');
-    expect(res.headers['x-cache']).toBeUndefined();
+    const vendor = nock(HOST).post('/graphql').twice().reply(200, { data: { do: true } });
+    const first = await request(app).post('/api/do').set('Authorization', `Bearer ${apiKey}`).set('X-Vendor-Token', 't');
+    const second = await request(app).post('/api/do').set('Authorization', `Bearer ${apiKey}`).set('X-Vendor-Token', 't');
+    expect(first.headers['x-cache']).toBeUndefined();
+    expect(second.headers['x-cache']).toBeUndefined();
+    expect(vendor.isDone()).toBe(true); // both POSTs reached the vendor
+  });
+
+  it('does not cache a failed vendor call', async () => {
+    const { connectionId, apiKey } = await seedGraphQLConnection();
+    await seedCachedMapping(connectionId);
+    nock(HOST).post('/graphql').reply(500, 'upstream broke');
+    const failed = await me(apiKey, 'tok-a');
+    expect(failed.status).toBeGreaterThanOrEqual(500);
+    const vendor = replyFor('tok-a', 'alice');
+    const retry = await me(apiKey, 'tok-a');
+    expect(retry.headers['x-cache']).toBe('MISS');
+    expect(retry.status).toBe(200);
+    expect(vendor.isDone()).toBe(true);
   });
 
   it('evicts on mapping update', async () => {
@@ -134,6 +150,19 @@ describe('response caching end-to-end', () => {
     await admin
       .put(`/admin/connections/${conn.body.id}/credentials`)
       .send({ grant: 'client_credentials', clientId: 'a', clientSecret: 'b', tokenUrl: 'https://login.example/token' });
+    expect(responseCache.get('seeded')).toBeUndefined();
+  });
+
+  it('evicts on credentials delete', async () => {
+    const conn = await admin
+      .post('/admin/connections')
+      .send({ name: 'managed-gql', adapterType: 'graphql', authMode: 'managed', config: { endpoint: ENDPOINT } });
+    await admin
+      .put(`/admin/connections/${conn.body.id}/credentials`)
+      .send({ grant: 'client_credentials', clientId: 'a', clientSecret: 'b', tokenUrl: 'https://login.example/token' });
+    responseCache.set('seeded', { stale: true }, { mappingId: 'm', connectionId: conn.body.id, ttlSeconds: 60 });
+    const res = await admin.delete(`/admin/connections/${conn.body.id}/credentials`);
+    expect(res.status).toBeLessThan(300);
     expect(responseCache.get('seeded')).toBeUndefined();
   });
 
