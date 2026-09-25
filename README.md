@@ -12,11 +12,12 @@ git clone <this repo> && cd GraphToRest
 export CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -hex 32)
 export GTR_BOOTSTRAP_ADMIN_USERNAME=admin
 export GTR_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -base64 18)
+echo "Bootstrap admin password: $GTR_BOOTSTRAP_ADMIN_PASSWORD"
 docker compose up -d
 ```
 
-Then open `http://localhost:3000` and sign in with the bootstrap admin
-credentials. `CREDENTIAL_ENCRYPTION_KEY` is only required for connections
+Then open `http://localhost:3000` and sign in as `admin` with the password
+printed above. `CREDENTIAL_ENCRYPTION_KEY` is only required for connections
 using `authMode: managed`; the bootstrap admin vars only take effect on the
 first run, while no admin user exists yet — unset them (or create further
 admins with `gtr admin create`) afterwards.

@@ -23,6 +23,11 @@ describe('loadConfig', () => {
     expect(config.credentialEncryptionKey).toBeUndefined();
   });
 
+  it('treats empty-string bootstrap admin vars as unset (docker-compose forwards unset vars as "")', () => {
+    const config = loadConfig({ GTR_BOOTSTRAP_ADMIN_USERNAME: '', GTR_BOOTSTRAP_ADMIN_PASSWORD: '' });
+    expect(config.bootstrapAdmin).toBeNull();
+  });
+
   it('reads overrides from the given env', () => {
     const config = loadConfig({
       PORT: '8080',

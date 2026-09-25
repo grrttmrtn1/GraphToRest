@@ -25,8 +25,8 @@ services:
       # Newest request-log rows kept for the web UI's Activity view.
       ACTIVITY_RETENTION: ${ACTIVITY_RETENTION:-1000}
       # First run only: creates this admin when none exists (password 12–1024 characters). Remove after first start.
-      # GTR_BOOTSTRAP_ADMIN_USERNAME: admin
-      # GTR_BOOTSTRAP_ADMIN_PASSWORD: ${GTR_BOOTSTRAP_ADMIN_PASSWORD:-}
+      GTR_BOOTSTRAP_ADMIN_USERNAME: ${GTR_BOOTSTRAP_ADMIN_USERNAME:-}
+      GTR_BOOTSTRAP_ADMIN_PASSWORD: ${GTR_BOOTSTRAP_ADMIN_PASSWORD:-}
       # Default per-API-key limit in requests/minute (unset = unlimited); keys can override it.
       RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-}
       RATE_LIMIT_DEFAULT_BURST: ${RATE_LIMIT_DEFAULT_BURST:-}
