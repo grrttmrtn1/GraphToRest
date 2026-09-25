@@ -96,6 +96,35 @@ describe('GraphHttpClient.list', () => {
 
     expect(result.data).toEqual([{ id: '2' }]);
   });
+
+  it('rejects a cursor pointing at a foreign host with a 400 INVALID_INPUT, without making any request', async () => {
+    const scope = nock('https://10.0.0.5').get(/.*/).reply(200, { value: ['leaked'] });
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    const cursor = encodeCursor('https://10.0.0.5/v1.0/users');
+    await expect(client.list('/users', { cursor })).rejects.toMatchObject({ code: 'INVALID_INPUT', status: 400 });
+    expect(scope.isDone()).toBe(false);
+  });
+
+  it('rejects a cursor pointing at a different Graph resource than the mapping requested, even on the real host', async () => {
+    const scope = nock('https://graph.microsoft.com').get(/.*/).reply(200, { value: ['other tenant data'] });
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    // A managed connection's app token would be attached to this — must not be followed for an unrelated resource.
+    const cursor = encodeCursor('https://graph.microsoft.com/v1.0/me/messages');
+    await expect(client.list('/users', { cursor })).rejects.toMatchObject({ code: 'INVALID_INPUT', status: 400 });
+    expect(scope.isDone()).toBe(false);
+  });
+
+  it('rejects plain http to the Graph host via cursor', async () => {
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    const cursor = encodeCursor('http://graph.microsoft.com/v1.0/users');
+    await expect(client.list('/users', { cursor })).rejects.toMatchObject({ code: 'INVALID_INPUT', status: 400 });
+  });
+
+  it('rejects an IPv4-literal-host cursor', async () => {
+    const client = new GraphHttpClient('passthrough', 'vendor-token');
+    const cursor = encodeCursor('https://169.254.169.254/v1.0/users');
+    await expect(client.list('/users', { cursor })).rejects.toMatchObject({ code: 'INVALID_INPUT', status: 400 });
+  });
 });
 
 describe('GraphHttpClient.batch', () => {

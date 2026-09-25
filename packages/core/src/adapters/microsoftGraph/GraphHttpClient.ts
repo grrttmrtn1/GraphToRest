@@ -1,7 +1,7 @@
 import { Client } from '@microsoft/microsoft-graph-client';
 import { GatewayError } from '../../gateway/errors';
 import { redactVendorText } from '../../gateway/redact';
-import { encodeCursor, decodeCursor, type NormalizedRequestQuery } from './odata';
+import { encodeCursor, decodeCursor, assertValidGraphCursorUrl, type NormalizedRequestQuery } from './odata';
 
 export interface GraphListResult {
   data: unknown[];
@@ -45,8 +45,11 @@ export class GraphHttpClient {
   }
 
   async list(path: string, query: NormalizedRequestQuery): Promise<GraphListResult> {
+    // Validated outside the try block: a GatewayError thrown here must reach the caller as-is, not get remapped
+    // to a generic VENDOR_ERROR by the catch below.
+    const cursorUrl = query.cursor ? assertValidGraphCursorUrl(decodeCursor(query.cursor), path) : undefined;
     try {
-      let req = query.cursor ? this.client.api(decodeCursor(query.cursor)) : this.client.api(path);
+      let req = cursorUrl ? this.client.api(cursorUrl) : this.client.api(path);
       if (!query.cursor) {
         if (query.select) req = req.select(query.select);
         if (query.filter) req = req.filter(query.filter);

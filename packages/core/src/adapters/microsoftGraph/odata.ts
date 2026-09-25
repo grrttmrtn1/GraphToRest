@@ -1,3 +1,7 @@
+import { GatewayError } from '../../gateway/errors';
+
+const GRAPH_ORIGIN = 'https://graph.microsoft.com';
+
 export interface NormalizedRequestQuery {
   select?: string;
   filter?: string;
@@ -26,6 +30,38 @@ export function encodeCursor(nextUrl: string): string {
 
 export function decodeCursor(cursor: string): string {
   return Buffer.from(cursor, 'base64url').toString('utf8');
+}
+
+/**
+ * Validates a decoded `?cursor=` value before it is used as an absolute request path. The Microsoft Graph SDK
+ * treats any string containing "https://" as an absolute URL and sends it to that URL's own host, so an
+ * unvalidated cursor is an SSRF vector (any host) and, for managed connections whose app token the SDK attaches
+ * automatically, an authorization-scope escape (any Graph resource, not just the ones the admin mapped).
+ *
+ * Requires: origin exactly `https://graph.microsoft.com`, a path under `/v1.0/` or `/beta/`, and — since this is
+ * feasible without restructuring the caller, which already knows the mapping's own request path — that the
+ * resource path matches the mapping's own request path (the cursor may only add a query string).
+ */
+export function assertValidGraphCursorUrl(decoded: string, requestPath: string): string {
+  let url: URL;
+  try {
+    url = new URL(decoded);
+  } catch {
+    throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
+  }
+  if (url.origin !== GRAPH_ORIGIN) {
+    throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
+  }
+  const versionMatch = /^\/(v1\.0|beta)(\/.*)?$/.exec(url.pathname);
+  if (!versionMatch) {
+    throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
+  }
+  const resourcePath = (versionMatch[2] ?? '/').replace(/\/+$/, '') || '/';
+  const expectedPath = requestPath.replace(/\/+$/, '') || '/';
+  if (resourcePath !== expectedPath) {
+    throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
+  }
+  return decoded;
 }
 
 export function interpolatePath(template: string, params: Record<string, string>): string {

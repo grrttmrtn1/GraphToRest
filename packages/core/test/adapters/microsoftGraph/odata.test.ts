@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeRequestQuery, encodeCursor, decodeCursor, interpolatePath } from '../../../src/adapters/microsoftGraph/odata';
+import { normalizeRequestQuery, encodeCursor, decodeCursor, interpolatePath, assertValidGraphCursorUrl } from '../../../src/adapters/microsoftGraph/odata';
+import { GatewayError } from '../../../src/gateway/errors';
 
 describe('normalizeRequestQuery', () => {
   it('picks known REST query params through unchanged', () => {
@@ -37,6 +38,52 @@ describe('cursor encode/decode', () => {
   it('round-trips a Graph nextLink URL', () => {
     const url = 'https://graph.microsoft.com/v1.0/users?$skiptoken=abc123';
     expect(decodeCursor(encodeCursor(url))).toBe(url);
+  });
+});
+
+describe('assertValidGraphCursorUrl', () => {
+  it('accepts a valid same-path v1.0 next-link', () => {
+    expect(assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users?$skiptoken=abc123', '/users')).toBe(
+      'https://graph.microsoft.com/v1.0/users?$skiptoken=abc123'
+    );
+  });
+
+  it('accepts a valid same-path beta delta-link', () => {
+    expect(assertValidGraphCursorUrl('https://graph.microsoft.com/beta/users/delta?$deltatoken=xyz', '/users/delta')).toBe(
+      'https://graph.microsoft.com/beta/users/delta?$deltatoken=xyz'
+    );
+  });
+
+  it('rejects a foreign host', () => {
+    expect(() => assertValidGraphCursorUrl('https://10.0.0.5/v1.0/users?$skiptoken=x', '/users')).toThrow(GatewayError);
+    try {
+      assertValidGraphCursorUrl('https://attacker.example/v1.0/users', '/users');
+      throw new Error('expected a throw');
+    } catch (err) {
+      expect(err).toMatchObject({ code: 'INVALID_INPUT', status: 400 });
+    }
+  });
+
+  it('rejects plain http even to the real Graph host', () => {
+    expect(() => assertValidGraphCursorUrl('http://graph.microsoft.com/v1.0/users', '/users')).toThrow(GatewayError);
+  });
+
+  it('rejects an IPv4-literal host', () => {
+    expect(() => assertValidGraphCursorUrl('https://127.0.0.1/v1.0/users', '/users')).toThrow(GatewayError);
+  });
+
+  it('rejects a path outside /v1.0/ or /beta/', () => {
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v2.0/users', '/users')).toThrow(GatewayError);
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/users', '/users')).toThrow(GatewayError);
+  });
+
+  it('rejects a cursor pointing at a different Graph resource than the mapping requested', () => {
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/secrets', '/users')).toThrow(GatewayError);
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/me/messages', '/users')).toThrow(GatewayError);
+  });
+
+  it('rejects an unparseable cursor', () => {
+    expect(() => assertValidGraphCursorUrl('not a url', '/users')).toThrow(GatewayError);
   });
 });
 
