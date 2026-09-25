@@ -65,4 +65,44 @@ describe('LoginThrottle', () => {
     expect(th.retryAfterMs([keys[0], 'ip:other'])).toBe(0);
     expect(th.retryAfterMs(['user:other', keys[1]])).toBe(MIN);
   });
+
+  it('caps a very long username to a bounded key instead of storing it verbatim', () => {
+    const long = 'a'.repeat(10_000);
+    const [usernameKey] = loginThrottleKeys(long, '1.2.3.4');
+    expect(usernameKey.length).toBeLessThan(200);
+    expect(usernameKey).not.toContain(long);
+    // Stable: the same long username always maps to the same key.
+    expect(loginThrottleKeys(long, '1.2.3.4')[0]).toBe(usernameKey);
+  });
+
+  describe('reserve/release (in-flight reservation for concurrent attempts)', () => {
+    it('reserves up to the failure threshold, then blocks further reservations without a recorded failure', () => {
+      const th = make();
+      for (let i = 0; i < 5; i++) expect(th.reserve(keys)).toBe(0);
+      expect(th.reserve(keys)).toBeGreaterThan(0);
+    });
+
+    it('recordFailure releases the reservation and counts it as a real failure', () => {
+      const th = make();
+      expect(th.reserve(keys)).toBe(0);
+      th.recordFailure(keys);
+      // The slot was released, so a fresh reservation is possible again (only 1 real failure so far).
+      expect(th.reserve(keys)).toBe(0);
+      expect(th.retryAfterMs(keys)).toBe(0);
+    });
+
+    it('release frees a reservation without counting a failure', () => {
+      const th = make();
+      for (let i = 0; i < 5; i++) expect(th.reserve(keys)).toBe(0);
+      th.release(keys);
+      expect(th.reserve(keys)).toBe(0);
+      expect(th.retryAfterMs(keys)).toBe(0);
+    });
+
+    it('a lock from real failures blocks new reservations too', () => {
+      const th = make();
+      for (let i = 0; i < 5; i++) th.recordFailure(keys);
+      expect(th.reserve(keys)).toBe(MIN);
+    });
+  });
 });

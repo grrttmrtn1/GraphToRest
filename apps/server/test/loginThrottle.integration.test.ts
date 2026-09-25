@@ -57,4 +57,32 @@ describe('admin login throttling', () => {
     for (let i = 0; i < 5; i++) await request(app).post('/admin/login').send({ username: 'test-admin', password: 'x'.repeat(2000) });
     expect((await request(app).post('/admin/login').send({ username: 'test-admin', password: TEST_ADMIN_PASSWORD })).status).toBe(429);
   });
+
+  it('caps concurrent wrong-password logins at the failure threshold instead of evaluating them all', async () => {
+    const attempts = 40;
+    const results = await Promise.all(
+      Array.from({ length: attempts }, () =>
+        request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-000' })
+      )
+    );
+    const unauthorized = results.filter((r) => r.status === 401).length;
+    const throttled = results.filter((r) => r.status === 429).length;
+    expect(unauthorized).toBeLessThanOrEqual(5);
+    expect(unauthorized + throttled).toBe(attempts);
+    // The password was in fact evaluated for the ones that got through, not just rejected by shape.
+    expect(unauthorized).toBeGreaterThan(0);
+  });
+
+  it('clears the counter on a concurrent success mixed with failures', async () => {
+    const requests = [
+      request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-000' }),
+      request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-001' }),
+      request(app).post('/admin/login').send({ username: 'test-admin', password: TEST_ADMIN_PASSWORD }),
+    ];
+    const results = await Promise.all(requests);
+    expect(results.some((r) => r.status === 200)).toBe(true);
+    // A later login with the right password still works (the success settled its reservation and cleared the key).
+    const after = await request(app).post('/admin/login').send({ username: 'test-admin', password: TEST_ADMIN_PASSWORD });
+    expect(after.status).toBe(200);
+  });
 });

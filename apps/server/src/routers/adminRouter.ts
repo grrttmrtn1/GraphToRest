@@ -76,31 +76,46 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
         return;
       }
       const keys = loginThrottleKeys(username, req.ip);
-      const retryMs = loginThrottle.retryAfterMs(keys);
+      // Reserve the attempt before the async password verify, so concurrent requests can't all slip past the
+      // check before any of them records a failure (see spec §5.1: 5 failures -> lockout).
+      const retryMs = loginThrottle.reserve(keys);
       if (retryMs > 0) {
         const retryAfterSeconds = Math.ceil(retryMs / 1000);
         res.setHeader('Retry-After', String(retryAfterSeconds));
         sendError(res, 429, 'LOGIN_THROTTLED', 'Too many failed login attempts; try again later', { retryAfterSeconds });
         return;
       }
-      const result = await loginAdmin(mappingStore, username, password, options.sessionTtlMs);
-      if (!result) {
-        loginThrottle.recordFailure(keys);
-        sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
-        return;
+      let outcome: 'success' | 'failure' | undefined;
+      try {
+        const result = await loginAdmin(mappingStore, username, password, options.sessionTtlMs);
+        if (!result) {
+          outcome = 'failure';
+          sendError(res, 401, 'UNAUTHORIZED', 'Invalid username or password');
+          return;
+        }
+        outcome = 'success';
+        if (session !== 'cookie') {
+          res.json(result);
+          return;
+        }
+        const details = mappingStore.findAdminSessionDetails(result.token);
+        res.setHeader(
+          'Set-Cookie',
+          sessionCookie(result.token, { maxAgeSeconds: (Date.parse(result.expiresAt) - Date.now()) / 1000, secure: secureCookies })
+        );
+        // The token travels only in the HttpOnly cookie, never in a body page scripts could read.
+        res.json({ username: details?.user.username ?? username, expiresAt: result.expiresAt });
+      } finally {
+        if (outcome === 'success') {
+          loginThrottle.release(keys);
+          loginThrottle.recordSuccess(keys[0]);
+        } else if (outcome === 'failure') {
+          loginThrottle.recordFailure(keys);
+        } else {
+          // loginAdmin threw: don't count it as a wrong-password failure, just free the reservation.
+          loginThrottle.release(keys);
+        }
       }
-      loginThrottle.recordSuccess(keys[0]);
-      if (session !== 'cookie') {
-        res.json(result);
-        return;
-      }
-      const details = mappingStore.findAdminSessionDetails(result.token);
-      res.setHeader(
-        'Set-Cookie',
-        sessionCookie(result.token, { maxAgeSeconds: (Date.parse(result.expiresAt) - Date.now()) / 1000, secure: secureCookies })
-      );
-      // The token travels only in the HttpOnly cookie, never in a body page scripts could read.
-      res.json({ username: details?.user.username ?? username, expiresAt: result.expiresAt });
     } catch (err) {
       next(err);
     }

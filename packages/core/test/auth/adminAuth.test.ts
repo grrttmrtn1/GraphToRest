@@ -72,7 +72,8 @@ describe('loginAdmin and sessions', () => {
     expect(await loginAdmin(store, 'nobody', PASSWORD)).toBeNull();
   });
 
-  it('rejects an over-long password without hashing it', async () => {
+  it('rejects an over-long password without hashing it, even for an existing user', async () => {
+    store.createAdminUser({ username: 'admin', password: PASSWORD });
     expect(await loginAdmin(store, 'admin', 'x'.repeat(1025))).toBeNull();
   });
 
