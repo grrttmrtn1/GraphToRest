@@ -36,7 +36,7 @@ describe('gtr mapping', () => {
     expect(created.code).toBe(0);
     expect(JSON.parse(created.stdout)).toMatchObject({ method: 'GET', route: '/users/{id}', source: 'manual' });
     const listed = await run(c, ['mapping', 'list']);
-    expect(listed.stdout).toMatch(/^ID\s+METHOD\s+ROUTE\s+CONNECTION\s+SOURCE\n\S+\s+GET\s+\/users\/\{id\}\s+c1\s+manual\n$/);
+    expect(listed.stdout).toMatch(/^ID\s+METHOD\s+ROUTE\s+CONNECTION\s+SOURCE\s+CACHE\n\S+\s+GET\s+\/users\/\{id\}\s+c1\s+manual\s+-\n$/);
   });
 
   it('rejects a malformed --route with exit 2', async () => {
@@ -65,6 +65,18 @@ describe('gtr mapping', () => {
     expect(JSON.parse(updated.stdout)).toMatchObject({ method: 'POST', route: '/b', responseTemplate: null });
     expect((await run(c, ['mapping', 'update', created.id])).code).toBe(2);
     expect((await run(c, ['mapping', 'update', 'nope', '--operation', '{}'])).code).toBe(4);
+  });
+
+  it('sets the cache TTL on create and update and shows it in the list', async () => {
+    const c = await withConnection();
+    const created = JSON.parse(
+      (await run(c, ['mapping', 'create', '--connection', 'c1', '--route', 'GET /ttl', '--operation', '{}', '--cache-ttl', '60', '--json'])).stdout
+    );
+    expect(created.cacheTtlSeconds).toBe(60);
+    expect((await run(c, ['mapping', 'list'])).stdout).toMatch(/CACHE[\s\S]*\b60s\b/);
+    const updated = await run(c, ['mapping', 'update', created.id, '--cache-ttl', '0']);
+    expect(updated.stdout).toBe(`Updated mapping GET /ttl (${created.id}); source is manual.\n`);
+    expect((await run(c, ['mapping', 'update', created.id, '--cache-ttl', 'soon'])).code).toBe(2);
   });
 
   it('deletes with --yes', async () => {

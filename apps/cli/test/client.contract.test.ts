@@ -173,6 +173,16 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
       expect(await codeOf(h.client.generateMappings('nope', {}))).toBe('NOT_FOUND');
     });
 
+    it('sets and clears cacheTtlSeconds without flipping source on a TTL-only update', async () => {
+      const conn = await h.client.createConnection({ name: 'ttl', adapterType: 'mock', authMode: 'passthrough' });
+      const m = await h.client.createMapping({ connectionId: conn.id, method: 'GET', route: '/ttl', operation: {}, cacheTtlSeconds: 30 });
+      expect(m.cacheTtlSeconds).toBe(30);
+      const cleared = await h.client.updateMapping(m.id, { cacheTtlSeconds: null });
+      expect(cleared.cacheTtlSeconds).toBeUndefined();
+      expect(cleared.source).toBe('manual'); // created manual by the CLI; unchanged
+      expect(await codeOf(h.client.updateMapping(m.id, { cacheTtlSeconds: -1 }))).toBe('INVALID_INPUT');
+    });
+
     it('exports YAML and imports a hand edit back onto the same mapping', async () => {
       const mapping = h.store.createMapping({ connectionId, method: 'GET', route: '/users/{id}', operation: { query: 'original' }, source: 'generated' });
       const yaml = await h.client.exportMappings({});

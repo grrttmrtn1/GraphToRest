@@ -73,8 +73,28 @@ describe('mappings tab', () => {
       route: '/people/{id}',
       operation: { query: 'user(id: $id) { id }' },
       responseTemplate: null,
+      cacheTtlSeconds: null,
     });
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Save mapping' })).toBeNull());
+  });
+
+  it('saves a cache TTL from the edit form', async () => {
+    const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, cacheTtlSeconds: 120, source: 'manual' } }]);
+    fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    expect((screen.getByLabelText('Cache TTL (seconds, 0 = off)') as HTMLInputElement).value).toBe('0');
+    fireEvent.change(screen.getByLabelText('Cache TTL (seconds, 0 = off)'), { target: { value: '120' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ cacheTtlSeconds: 120 });
+  });
+
+  it('rejects a non-integer cache TTL locally', async () => {
+    const { calls } = await openMappingsTab([]);
+    fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    fireEvent.change(screen.getByLabelText('Cache TTL (seconds, 0 = off)'), { target: { value: '1.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
+    expect(await screen.findByText('Cache TTL must be a whole number of seconds from 0 to 86400')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
   });
 
   it('shows server validation errors inline and keeps the form open', async () => {

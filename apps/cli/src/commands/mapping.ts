@@ -22,6 +22,13 @@ function parseTemplate(text: string): Record<string, string> | null {
   return parseJsonObject(text, '--response-template') as Record<string, string>;
 }
 
+/** 0 clears the TTL (stored as null); anything else must be a whole number of seconds up to a day. */
+function parseCacheTtl(text: string): number | null {
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 0 || n > 86_400) throw usageError('--cache-ttl must be a whole number of seconds from 0 to 86400');
+  return n === 0 ? null : n;
+}
+
 export function writeFileAtomic(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
@@ -47,16 +54,21 @@ export function registerMappingCommands(program: Command, ctx: CliContext): void
     .requiredOption('--route <route>', 'e.g. "GET /users/{id}"')
     .requiredOption('--operation <json>', 'JSON operation object')
     .option('--response-template <json>', 'JSON map of output field to JSONPath')
+    .option('--cache-ttl <seconds>', 'cache successful GET responses for this long (0 = off)')
     .action(
-      action(ctx, async (rt, opts: { connection: string; route: string; operation: string; responseTemplate?: string }) => {
-        const { method, route } = parseRoute(opts.route);
-        const operation = parseJsonObject(opts.operation, '--operation');
-        const responseTemplate = opts.responseTemplate === undefined ? undefined : parseTemplate(opts.responseTemplate);
-        const client = rt.client();
-        const connection = await resolveConnection(client, opts.connection);
-        const created = await client.createMapping({ connectionId: connection.id, method, route, operation, responseTemplate });
-        rt.out.result(created, (m) => `Created mapping ${m.method} ${m.route} (${m.id}).`);
-      })
+      action(
+        ctx,
+        async (rt, opts: { connection: string; route: string; operation: string; responseTemplate?: string; cacheTtl?: string }) => {
+          const { method, route } = parseRoute(opts.route);
+          const operation = parseJsonObject(opts.operation, '--operation');
+          const responseTemplate = opts.responseTemplate === undefined ? undefined : parseTemplate(opts.responseTemplate);
+          const cacheTtlSeconds = opts.cacheTtl === undefined ? undefined : parseCacheTtl(opts.cacheTtl);
+          const client = rt.client();
+          const connection = await resolveConnection(client, opts.connection);
+          const created = await client.createMapping({ connectionId: connection.id, method, route, operation, responseTemplate, cacheTtlSeconds });
+          rt.out.result(created, (m) => `Created mapping ${m.method} ${m.route} (${m.id}).`);
+        }
+      )
     );
 
   mapping
@@ -74,8 +86,15 @@ export function registerMappingCommands(program: Command, ctx: CliContext): void
           list.length === 0
             ? 'No mappings.'
             : table(
-                ['ID', 'METHOD', 'ROUTE', 'CONNECTION', 'SOURCE'],
-                list.map((m) => [m.id, m.method, m.route, names.get(m.connectionId) ?? m.connectionId, m.source])
+                ['ID', 'METHOD', 'ROUTE', 'CONNECTION', 'SOURCE', 'CACHE'],
+                list.map((m) => [
+                  m.id,
+                  m.method,
+                  m.route,
+                  names.get(m.connectionId) ?? m.connectionId,
+                  m.source,
+                  m.cacheTtlSeconds ? `${m.cacheTtlSeconds}s` : '-',
+                ])
               )
         );
       })
@@ -83,18 +102,20 @@ export function registerMappingCommands(program: Command, ctx: CliContext): void
 
   mapping
     .command('update <id>')
-    .description('edit a mapping (it becomes source=manual)')
+    .description('edit a mapping (route/operation/template edits make it source=manual)')
     .option('--route <route>', 'e.g. "GET /users/{id}"')
     .option('--operation <json>', 'JSON operation object')
     .option('--response-template <json>', 'JSON map of output field to JSONPath, or null to clear')
+    .option('--cache-ttl <seconds>', 'cache successful GET responses for this long (0 = off)')
     .action(
-      action(ctx, async (rt, id: string, opts: { route?: string; operation?: string; responseTemplate?: string }) => {
+      action(ctx, async (rt, id: string, opts: { route?: string; operation?: string; responseTemplate?: string; cacheTtl?: string }) => {
         const patch: MappingPatch = {};
         if (opts.route !== undefined) Object.assign(patch, parseRoute(opts.route));
         if (opts.operation !== undefined) patch.operation = parseJsonObject(opts.operation, '--operation');
         if (opts.responseTemplate !== undefined) patch.responseTemplate = parseTemplate(opts.responseTemplate);
+        if (opts.cacheTtl !== undefined) patch.cacheTtlSeconds = parseCacheTtl(opts.cacheTtl);
         const updated = await rt.client().updateMapping(id, patch);
-        rt.out.result(updated, (m) => `Updated mapping ${m.method} ${m.route} (${m.id}); source is now manual.`);
+        rt.out.result(updated, (m) => `Updated mapping ${m.method} ${m.route} (${m.id}); source is ${m.source}.`);
       })
     );
 

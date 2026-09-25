@@ -26,6 +26,7 @@ export interface Mapping {
   operation: Record<string, unknown>;
   responseTemplate: Record<string, string> | null;
   source: 'generated' | 'manual';
+  cacheTtlSeconds?: number;
 }
 
 export interface MappingPatch {
@@ -33,6 +34,7 @@ export interface MappingPatch {
   route: string;
   operation: unknown;
   responseTemplate: unknown;
+  cacheTtlSeconds: number | null;
 }
 
 export interface GenerationResult {

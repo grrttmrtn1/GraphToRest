@@ -17,6 +17,7 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
   const [route, setRoute] = useState(mapping.route);
   const [operation, setOperation] = useState(JSON.stringify(mapping.operation, null, 2));
   const [template, setTemplate] = useState(mapping.responseTemplate ? JSON.stringify(mapping.responseTemplate, null, 2) : '');
+  const [cacheTtl, setCacheTtl] = useState(String(mapping.cacheTtlSeconds ?? 0));
   const [localError, setLocalError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const save = useMutation({
@@ -44,7 +45,12 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
       }
       responseTemplate = parsedTemplate.value;
     }
-    save.mutate({ method, route, operation: parsedOperation.value, responseTemplate });
+    const ttl = Number(cacheTtl);
+    if (!Number.isInteger(ttl) || ttl < 0 || ttl > 86_400) {
+      setLocalError('Cache TTL must be a whole number of seconds from 0 to 86400');
+      return;
+    }
+    save.mutate({ method, route, operation: parsedOperation.value, responseTemplate, cacheTtlSeconds: ttl === 0 ? null : ttl });
   };
 
   return (
@@ -53,7 +59,7 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
         Edit {mapping.method} {mapping.route}
       </h2>
       <p className="muted">Saving marks this mapping as manual, so regeneration skips it unless forced.</p>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} noValidate>
         <label>
           Method
           <input value={method} onChange={(e) => setMethod(e.target.value)} required />
@@ -69,6 +75,10 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
         <label>
           Response template (JSON, empty for passthrough)
           <textarea value={template} onChange={(e) => setTemplate(e.target.value)} />
+        </label>
+        <label>
+          Cache TTL (seconds, 0 = off)
+          <input type="number" min={0} max={86400} step={1} value={cacheTtl} onChange={(e) => setCacheTtl(e.target.value)} />
         </label>
         {localError && (
           <p className="form-error" role="alert">
