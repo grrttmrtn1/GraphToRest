@@ -18,6 +18,7 @@ import { createApp } from './app';
 import { RateLimiter } from './middleware/rateLimit';
 import { LoginThrottle } from './middleware/loginThrottle';
 import { createShutdown, installShutdownHandlers } from './shutdown';
+import { bootstrapAdmin } from './bootstrap';
 
 const PERMISSION_CODES = new Set(['EACCES', 'EPERM', 'SQLITE_CANTOPEN', 'SQLITE_READONLY']);
 
@@ -29,6 +30,11 @@ function main(): void {
 
   const db = openDb(config.dbPath);
   const mappingStore = new MappingStore(db);
+  try {
+    bootstrapAdmin(mappingStore, config.bootstrapAdmin, logger);
+  } catch (err) {
+    throw new Error(`GTR_BOOTSTRAP_ADMIN_PASSWORD was rejected: ${(err as Error).message}`);
+  }
   const managedAuth = config.credentialEncryptionKey
     ? new ManagedTokenService(mappingStore, new CredentialCipher(config.credentialEncryptionKey))
     : undefined;
