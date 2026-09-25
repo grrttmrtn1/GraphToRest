@@ -20,6 +20,7 @@ describe('loadConfig', () => {
       allowPrivateNetworkTargets: false,
       bootstrapAdmin: null,
       trustProxy: false,
+      apiAuthFailuresPerMinute: 60,
     });
     expect(config.credentialEncryptionKey).toBeUndefined();
   });
@@ -66,6 +67,7 @@ describe('loadConfig', () => {
       allowPrivateNetworkTargets: true,
       bootstrapAdmin: { username: 'root', password: 'correct-horse-battery' },
       trustProxy: false,
+      apiAuthFailuresPerMinute: 60,
     });
   });
 
@@ -122,5 +124,11 @@ describe('loadConfig', () => {
     expect(loadConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
     expect(loadConfig({ TRUST_PROXY: '1' }).trustProxy).toBe(1);
     expect(loadConfig({ TRUST_PROXY: 'loopback, 10.0.0.0/8' }).trustProxy).toBe('loopback, 10.0.0.0/8');
+  });
+
+  it('parses API_AUTH_FAILURES_PER_MINUTE (0 disables it)', () => {
+    expect(loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '0' }).apiAuthFailuresPerMinute).toBe(0);
+    expect(loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '120' }).apiAuthFailuresPerMinute).toBe(120);
+    expect(() => loadConfig({ API_AUTH_FAILURES_PER_MINUTE: '-1' })).toThrow(/API_AUTH_FAILURES_PER_MINUTE/);
   });
 });

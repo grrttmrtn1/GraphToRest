@@ -20,6 +20,7 @@ export interface ServerConfig {
   bootstrapAdmin: { username: string; password: string } | null;
   /** Express `trust proxy`: false (default), true, a hop count, or a comma list of addresses/CIDRs/named ranges. */
   trustProxy: boolean | number | string;
+  apiAuthFailuresPerMinute: number;
 }
 
 function isSet(value: string | undefined): value is string {
@@ -93,5 +94,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     allowPrivateNetworkTargets: outbound.allowPrivateNetworkTargets,
     bootstrapAdmin: parseBootstrapAdmin(env),
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
+    apiAuthFailuresPerMinute: parseInteger(env, 'API_AUTH_FAILURES_PER_MINUTE', 60, 0, 1_000_000),
   };
 }

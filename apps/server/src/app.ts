@@ -19,6 +19,7 @@ import { createAdminRouter } from './routers/adminRouter';
 import { createRequestLogger } from './middleware/requestLogger';
 import { createWebHandler } from './web';
 import type { LoginThrottle } from './middleware/loginThrottle';
+import type { ApiAuthThrottle } from './middleware/apiAuthThrottle';
 
 export interface AppDeps {
   mappingStore: MappingStore;
@@ -37,6 +38,7 @@ export interface AppDeps {
   responseCache?: ResponseCache;
   /** Express `trust proxy` setting; unset leaves req.ip as the socket address (see TRUST_PROXY in the README). */
   trustProxy?: boolean | number | string;
+  apiAuthThrottle?: ApiAuthThrottle;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -64,7 +66,7 @@ export function createApp(deps: AppDeps): Express {
       '/api',
       createRequestLogger(logger, 'api'),
       createActivityLogger(deps.mappingStore, deps.activityRetention ?? DEFAULT_ACTIVITY_RETENTION, logger),
-      createApiKeyAuth(deps.mappingStore),
+      createApiKeyAuth(deps.mappingStore, deps.apiAuthThrottle),
       rateLimiter.middleware(),
       createApiRouter(deps.gatewayEngine, logger)
     );

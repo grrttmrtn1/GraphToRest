@@ -17,6 +17,7 @@ import { loadConfig } from './config';
 import { createApp } from './app';
 import { RateLimiter } from './middleware/rateLimit';
 import { LoginThrottle } from './middleware/loginThrottle';
+import { ApiAuthThrottle } from './middleware/apiAuthThrottle';
 import { createShutdown, installShutdownHandlers } from './shutdown';
 import { bootstrapAdmin, wrapBootstrapError } from './bootstrap';
 
@@ -42,6 +43,7 @@ function main(): void {
   const gatewayEngine = new GatewayEngine(mappingStore, managedAuth, responseCache);
   const rateLimiter = new RateLimiter({ defaultLimit: config.rateLimitDefault });
   const loginThrottle = new LoginThrottle();
+  const apiAuthThrottle = new ApiAuthThrottle({ failuresPerMinute: config.apiAuthFailuresPerMinute });
 
   // apps/server/dist/index.js → apps/web/dist (same layout in the Docker image).
   const webDist = path.resolve(__dirname, '../../web/dist');
@@ -62,6 +64,7 @@ function main(): void {
     loginThrottle,
     responseCache,
     trustProxy: config.trustProxy,
+    apiAuthThrottle,
   });
 
   warnAboutConfiguration(config, mappingStore, logger, Boolean(managedAuth), webRoot, webDist);
@@ -76,6 +79,7 @@ function main(): void {
       cleanup: () => {
         rateLimiter.stop();
         loginThrottle.stop();
+        apiAuthThrottle.stop();
         db.close();
       },
     })

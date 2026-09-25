@@ -44,6 +44,7 @@ All configuration is via environment variables.
 | `OUTBOUND_TIMEOUT_MS` | `30000` | Timeout for outbound GraphQL and OAuth token requests. |
 | `ALLOW_PRIVATE_NETWORK_TARGETS` | `false` | Set to `true` to allow outbound requests to private/loopback/link-local destinations (needed when the GraphQL endpoint runs on the same Docker network or LAN). |
 | `TRUST_PROXY` | `false` | Set when running behind a reverse proxy so login throttling sees real client addresses: use the proxy hop count (usually `1`) or a comma list of proxy addresses/CIDRs. Never `true` unless every connection comes through your proxy, or clients can spoof `X-Forwarded-For`. |
+| `API_AUTH_FAILURES_PER_MINUTE` | `60` | Failed `/api` key checks allowed per client address per minute before requests with an unknown key id get `429 AUTH_THROTTLED` without being hashed. Requests with a real key id are never throttled. `0` disables. |
 | `GTR_BOOTSTRAP_ADMIN_USERNAME` | unset | Together with `GTR_BOOTSTRAP_ADMIN_PASSWORD`, creates this admin user on startup if no admin exists yet. Remove after first start. |
 | `GTR_BOOTSTRAP_ADMIN_PASSWORD` | unset | See above. Passwords must be 12–1024 characters. |
 
