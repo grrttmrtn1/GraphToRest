@@ -8,3 +8,6 @@ data
 coverage
 *.log
 docs
+.superpowers
+**/.env
+**/.env.*
