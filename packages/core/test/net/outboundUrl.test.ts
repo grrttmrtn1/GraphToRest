@@ -80,6 +80,13 @@ describe('assertOutboundTargetAllowed', () => {
     );
   });
 
+  it('rejects plain http when a mixed DNS answer includes a public address, even when opted in', async () => {
+    // Only some of the resolved addresses are private: the http rule must require ALL of them to be private
+    // (not just some), since the actual connection could land on the public address over plain http.
+    const opted = policy({ allowPrivateNetworkTargets: true, lookup: async () => ['203.0.113.10', '172.18.0.4'] });
+    expect(await codeOf(assertOutboundTargetAllowed('http://mixed.example/', opted))).toBe('OUTBOUND_TARGET_BLOCKED');
+  });
+
   it('reports an unresolvable host as VENDOR_UNREACHABLE', async () => {
     const lookup = async () => {
       throw Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' });

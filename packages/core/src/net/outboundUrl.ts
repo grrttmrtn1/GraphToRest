@@ -46,11 +46,17 @@ export async function assertOutboundTargetAllowed(url: string, policy: OutboundP
     }
     if (addresses.length === 0) throw new GatewayError('VENDOR_UNREACHABLE', `Could not resolve ${host}`, 502);
   }
+  // Fail closed on the block check: any private address in the answer is enough to refuse, even with a public
+  // address mixed in, unless the deployment opted in.
   const privateTarget = addresses.some(isPrivateAddress);
   if (privateTarget && !policy.allowPrivateNetworkTargets) {
     throw blocked(`${host} resolves to a private-network address; set ALLOW_PRIVATE_NETWORK_TARGETS=true to allow it`);
   }
-  if (parsed.protocol === 'http:' && !privateTarget) {
+  // The http rule is the opposite: plain http is only safe when EVERY resolved address is private, because the
+  // actual TCP connection could land on any of them. `some` here would let a mixed public/private DNS answer send
+  // plain http to what may resolve to the public address.
+  const allPrivate = addresses.every(isPrivateAddress);
+  if (parsed.protocol === 'http:' && !allPrivate) {
     throw blocked(`Plain http is only allowed for private-network destinations (with ALLOW_PRIVATE_NETWORK_TARGETS=true); use https for ${host}`);
   }
 }

@@ -34,8 +34,10 @@ export function outboundPolicyFromEnv(env: NodeJS.ProcessEnv): Pick<OutboundPoli
   const rawTimeout = env.OUTBOUND_TIMEOUT_MS;
   if (rawTimeout !== undefined && rawTimeout !== '') {
     timeoutMs = Number(rawTimeout);
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
-      throw new Error(`OUTBOUND_TIMEOUT_MS must be an integer of at least 1, got "${rawTimeout}"`);
+    // AbortSignal.timeout() silently overflows past the 32-bit signed int max (fires almost immediately instead
+    // of throwing), which would otherwise break every outbound call instead of failing fast at startup.
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
+      throw new Error(`OUTBOUND_TIMEOUT_MS must be an integer from 1 to 2147483647, got "${rawTimeout}"`);
     }
   }
   const rawAllow = env.ALLOW_PRIVATE_NETWORK_TARGETS;
