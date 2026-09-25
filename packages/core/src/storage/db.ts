@@ -5,12 +5,18 @@ import { MIGRATIONS } from './migrations';
 
 export function openDb(filePath: string): Database.Database {
   const dir = path.dirname(filePath);
-  if (dir && dir !== '.') {
-    fs.mkdirSync(dir, { recursive: true });
+  if (dir && dir !== '.' && !fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   const db = new Database(filePath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // The file holds hashed API keys and encrypted vendor credentials: owner-only, whether new or pre-existing.
+  if (filePath !== ':memory:') {
+    for (const file of [filePath, `${filePath}-wal`, `${filePath}-shm`]) {
+      if (fs.existsSync(file)) fs.chmodSync(file, 0o600);
+    }
+  }
   for (const migration of MIGRATIONS) {
     db.exec(migration);
   }

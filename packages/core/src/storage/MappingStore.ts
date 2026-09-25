@@ -359,6 +359,16 @@ export class MappingStore {
     return (this.db.prepare('SELECT COUNT(*) as n FROM admin_users').get() as { n: number }).n;
   }
 
+  /** True when the database answers a trivial query. */
+  healthCheck(): boolean {
+    try {
+      this.db.prepare('SELECT 1').get();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Replaces the password and revokes every session of that user. Returns false if the user does not exist. */
   setAdminPassword(username: string, password: string): boolean {
     assertAcceptablePassword(password);

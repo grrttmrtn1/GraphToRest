@@ -41,6 +41,14 @@ export function createApp(deps: AppDeps): Express {
   const app = express();
   const logger = deps.logger ?? silentLogger;
   const rateLimiter = deps.rateLimiter ?? new RateLimiter({ defaultLimit: null });
+
+  // Unauthenticated and not recorded to request_log; always registered regardless of apiEnabled/adminEnabled.
+  app.get('/healthz', (_req, res) => {
+    const ok = deps.mappingStore.healthCheck();
+    logger.debug('healthcheck', { ok });
+    res.status(ok ? 200 : 503).json({ status: ok ? 'ok' : 'error' });
+  });
+
   // 1 MB so the web UI can import a mappings YAML file through POST /admin/mappings/import.
   app.use(express.json({ limit: '1mb' }));
 
