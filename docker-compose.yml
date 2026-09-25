@@ -1,8 +1,11 @@
 services:
   graphtorest:
     build: .
-    # /admin/* requires an admin login. Create the first admin (12+ character password) with:
+    # /admin/* requires an admin login. Create the first admin (12+ character password) either on
+    # first run via GTR_BOOTSTRAP_ADMIN_USERNAME / GTR_BOOTSTRAP_ADMIN_PASSWORD below, or with:
     #   docker compose run --rm -e GTR_ADMIN_PASSWORD --entrypoint gtr graphtorest admin create --username admin
+    # Upgrading from an image before Plan 8 (which ran as root)? Run once:
+    #   docker compose run --rm --user root --entrypoint chown graphtorest -R node:node /data
     # The server speaks plain HTTP, so keep the loopback binding unless a TLS-terminating
     # reverse proxy sits in front of it.
     ports:
@@ -21,6 +24,20 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
       # Newest request-log rows kept for the web UI's Activity view.
       ACTIVITY_RETENTION: ${ACTIVITY_RETENTION:-1000}
+      # First run only: creates this admin when none exists (password 12–1024 characters). Remove after first start.
+      # GTR_BOOTSTRAP_ADMIN_USERNAME: admin
+      # GTR_BOOTSTRAP_ADMIN_PASSWORD: ${GTR_BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Default per-API-key limit in requests/minute (unset = unlimited); keys can override it.
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-}
+      RATE_LIMIT_DEFAULT_BURST: ${RATE_LIMIT_DEFAULT_BURST:-}
+      # Upper bound for per-mapping response-cache TTLs, and the cache size (0 disables caching).
+      CACHE_MAX_TTL_SECONDS: ${CACHE_MAX_TTL_SECONDS:-300}
+      CACHE_MAX_ENTRIES: ${CACHE_MAX_ENTRIES:-1000}
+      # Outbound GraphQL/OAuth requests: timeout, and whether private/loopback/link-local destinations are allowed
+      # (needed when a GraphQL endpoint runs on the same Docker network or LAN).
+      OUTBOUND_TIMEOUT_MS: ${OUTBOUND_TIMEOUT_MS:-30000}
+      ALLOW_PRIVATE_NETWORK_TARGETS: ${ALLOW_PRIVATE_NETWORK_TARGETS:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
 
 volumes:
   graphtorest-data:
