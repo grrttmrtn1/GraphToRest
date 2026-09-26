@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
@@ -16,7 +16,7 @@ COPY apps/web apps/web
 RUN npm run build --workspaces --if-present
 
 # Production dependencies only, and only for the packages the runtime image runs (not the web app's build chain).
-FROM node:20-slim AS prod-deps
+FROM node:22-slim AS prod-deps
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
@@ -27,7 +27,7 @@ COPY apps/cli/package.json apps/cli/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci --omit=dev --workspace=@graphtorest/core --workspace=@graphtorest/server --workspace=@graphtorest/cli
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV DB_PATH=/data/graphtorest.db

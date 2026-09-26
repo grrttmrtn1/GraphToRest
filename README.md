@@ -5,6 +5,11 @@ as plain REST endpoints. Mappings translate REST routes to GraphQL queries and
 shape the responses; an admin web UI and the `gtr` CLI manage connections,
 mappings and API keys.
 
+## Prerequisites
+
+Docker for the quick start below. To build or run from source you need Node.js 22 LTS
+(20.19+ still works; the web UI's build tooling requires one of those).
+
 ## Quick start
 
 ```bash
