@@ -20,6 +20,9 @@ interface Entry {
 /** Usernames are attacker-controlled and the body limit is 1 MB; bound the key instead of storing one verbatim. */
 const MAX_USERNAME_KEY_LENGTH = 256;
 
+/** Retry-after for an attempt refused only because other attempts are still being verified. */
+const PENDING_RETRY_MS = 1000;
+
 export function loginThrottleKeys(username: string, ip: string | undefined): [string, string] {
   const normalized = username.trim().toLowerCase();
   const usernameKey =
@@ -112,15 +115,16 @@ export class LoginThrottle {
     return entry;
   }
 
-  /** `retryAfterMs` for a key, but also treats failures-plus-pending-reservations at the threshold as locked while
-   * reservations are still outstanding (unsettled), even before any of them has produced a real `lockedUntil`. Once
-   * nothing is in flight, only the real `lockedUntil` governs — a naturally-expired lockout still lets the next
-   * attempt through, same as before reservations existed. */
+  /** `retryAfterMs` for a key, but also refuses an attempt when failures-plus-pending-reservations reach the
+   * threshold while reservations are still outstanding (unsettled), even before any of them has produced a real
+   * `lockedUntil`. That refusal asks for a short retry (`PENDING_RETRY_MS`): the pending attempts may yet succeed,
+   * and if they fail the real lockout follows once they settle. Once nothing is in flight, only the real
+   * `lockedUntil` governs — a naturally-expired lockout still lets the next attempt through. */
   private effectiveRetryMs(key: string, now: number): number {
     const entry = this.entries.get(key);
     if (!entry || this.isExpired(entry, now)) return 0;
     if (entry.lockedUntil > now) return entry.lockedUntil - now;
-    if (entry.inFlight > 0 && entry.failures + entry.inFlight >= this.maxFailures) return this.baseLockoutMs;
+    if (entry.inFlight > 0 && entry.failures + entry.inFlight >= this.maxFailures) return PENDING_RETRY_MS;
     return 0;
   }
 

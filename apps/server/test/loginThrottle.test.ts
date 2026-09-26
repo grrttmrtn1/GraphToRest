@@ -79,7 +79,8 @@ describe('LoginThrottle', () => {
     it('reserves up to the failure threshold, then blocks further reservations without a recorded failure', () => {
       const th = make();
       for (let i = 0; i < 5; i++) expect(th.reserve(keys)).toBe(0);
-      expect(th.reserve(keys)).toBeGreaterThan(0);
+      // Only pending reservations reach the threshold: a short "try again momentarily", not a full lockout.
+      expect(th.reserve(keys)).toBe(1000);
     });
 
     it('recordFailure releases the reservation and counts it as a real failure', () => {

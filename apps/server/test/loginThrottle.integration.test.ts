@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -84,5 +84,20 @@ describe('admin login throttling', () => {
     // A later login with the right password still works (the success settled its reservation and cleared the key).
     const after = await request(app).post('/admin/login').send({ username: 'test-admin', password: TEST_ADMIN_PASSWORD });
     expect(after.status).toBe(200);
+  });
+
+  it('releases the reservation when the password verify throws, instead of leaking it', async () => {
+    vi.spyOn(store, 'findAdminUserByUsername').mockImplementationOnce(() => {
+      throw new Error('db exploded');
+    });
+    const crashed = await request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-000' });
+    expect(crashed.status).toBe(500);
+    // A leaked reservation would count toward the threshold and throttle the 5th attempt; a released one does not.
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-000' });
+      expect(res.status).toBe(401);
+    }
+    const blocked = await request(app).post('/admin/login').send({ username: 'test-admin', password: 'wrong-password-000' });
+    expect(blocked.status).toBe(429);
   });
 });

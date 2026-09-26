@@ -57,6 +57,7 @@ describe('admin authentication', () => {
     const unknown = await request(app).post('/admin/login').send({ username: 'ghost', password: TEST_ADMIN_PASSWORD });
     expect(wrong.status).toBe(401);
     expect(unknown.status).toBe(401);
+    expect(wrong.body.error.code).toBe('UNAUTHORIZED');
     expect(wrong.body).toEqual(unknown.body);
   });
 
@@ -70,7 +71,9 @@ describe('admin authentication', () => {
     const admin = createAdminClient(app, store);
     expect((await admin.get('/admin/connections')).status).toBe(200);
     expect((await admin.post('/admin/logout').send({})).status).toBe(204);
-    expect((await admin.get('/admin/connections')).status).toBe(401);
+    const after = await admin.get('/admin/connections');
+    expect(after.status).toBe(401);
+    expect(after.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('rejects an expired session', async () => {
@@ -78,6 +81,7 @@ describe('admin authentication', () => {
     const { token } = store.createAdminSession(user.id, -1000);
     const res = await request(app).get('/admin/connections').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('creates admin users through the API, with 409 for a duplicate and 400 for a weak password', async () => {
@@ -89,6 +93,7 @@ describe('admin authentication', () => {
 
     const dup = await admin.post('/admin/admin-users').send({ username: 'second', password: 'another-long-password' });
     expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe('CONFLICT');
 
     const weak = await admin.post('/admin/admin-users').send({ username: 'third', password: 'short' });
     expect(weak.status).toBe(400);
@@ -99,11 +104,13 @@ describe('admin authentication', () => {
     const admin = createAdminClient(app, store);
     const res = await admin.post('/admin/admin-users').send({ username: 'long', password: 'x'.repeat(1025) });
     expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_INPUT');
   });
 
   it('does not affect API-key auth on /api/*', async () => {
     const res = await request(app).get('/api/anything');
     expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
     expect(res.body.error.message).toBe('Missing API key');
   });
 });
