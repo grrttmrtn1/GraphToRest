@@ -1,6 +1,6 @@
 import type { MappingRecord } from '../storage/MappingStore';
 import { parseRouteString } from './routeString';
-import { MAX_CACHE_TTL_SECONDS } from './mappingFields';
+import { MAX_CACHE_TTL_SECONDS, isValidCacheTtl } from './mappingFields';
 
 export interface MappingYamlEntry {
   id?: string;
@@ -57,7 +57,7 @@ export function yamlEntryToMappingInput(entry: MappingYamlEntry, connectionId: s
     }
   }
   const ttl = entry.cacheTtlSeconds;
-  if (ttl !== undefined && (typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl < 0 || ttl > MAX_CACHE_TTL_SECONDS)) {
+  if (ttl !== undefined && !isValidCacheTtl(ttl)) {
     throw new Error(`Mapping "${entry.route}" has an invalid cacheTtlSeconds (expected an integer from 0 to ${MAX_CACHE_TTL_SECONDS})`);
   }
   return {

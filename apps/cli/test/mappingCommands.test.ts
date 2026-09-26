@@ -79,6 +79,16 @@ describe('gtr mapping', () => {
     expect((await run(c, ['mapping', 'update', created.id, '--cache-ttl', 'soon'])).code).toBe(2);
   });
 
+  it('keeps a generated mapping generated when only its cache TTL changes', async () => {
+    const c = await withConnection();
+    await run(c, ['mapping', 'generate', '--connection', 'c1']);
+    const [generated] = JSON.parse((await run(c, ['mapping', 'list', '--json'])).stdout);
+    expect(generated.source).toBe('generated');
+    const updated = await run(c, ['mapping', 'update', generated.id, '--cache-ttl', '30', '--json']);
+    expect(updated.code).toBe(0);
+    expect(JSON.parse(updated.stdout)).toMatchObject({ cacheTtlSeconds: 30, source: 'generated' });
+  });
+
   it('deletes with --yes', async () => {
     const c = await withConnection();
     const created = JSON.parse((await run(c, ['mapping', 'create', '--connection', 'c1', '--route', 'GET /a', '--operation', '{}', '--json'])).stdout);

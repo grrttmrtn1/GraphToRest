@@ -11,6 +11,11 @@ export interface MappingFields {
 
 export const MAX_CACHE_TTL_SECONDS = 86_400;
 
+/** A cache TTL is a whole number of seconds from 0 (off) to `MAX_CACHE_TTL_SECONDS`. */
+export function isValidCacheTtl(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_CACHE_TTL_SECONDS;
+}
+
 function invalid(message: string): GatewayError {
   return new GatewayError('INVALID_INPUT', message, 400);
 }
@@ -57,7 +62,7 @@ export function parseMappingFields(input: Record<string, unknown>): MappingField
 
   if (input.cacheTtlSeconds !== undefined) {
     const ttl = input.cacheTtlSeconds;
-    if (ttl !== null && (typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl < 0 || ttl > MAX_CACHE_TTL_SECONDS)) {
+    if (ttl !== null && !isValidCacheTtl(ttl)) {
       throw invalid(`"cacheTtlSeconds" must be null or an integer from 0 to ${MAX_CACHE_TTL_SECONDS}`);
     }
     fields.cacheTtlSeconds = ttl === 0 ? null : ttl;

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Command } from 'commander';
-import { parseRouteString } from '@graphtorest/core';
+import { parseRouteString, isValidCacheTtl, MAX_CACHE_TTL_SECONDS } from '@graphtorest/core';
 import { action, confirmOrRefuse, parseJsonObject, type CliContext } from '../runtime';
 import { CliError, usageError } from '../errors';
 import { table } from '../output';
@@ -25,7 +25,7 @@ function parseTemplate(text: string): Record<string, string> | null {
 /** 0 clears the TTL (stored as null); anything else must be a whole number of seconds up to a day. */
 function parseCacheTtl(text: string): number | null {
   const n = Number(text);
-  if (!Number.isInteger(n) || n < 0 || n > 86_400) throw usageError('--cache-ttl must be a whole number of seconds from 0 to 86400');
+  if (!isValidCacheTtl(n)) throw usageError(`--cache-ttl must be a whole number of seconds from 0 to ${MAX_CACHE_TTL_SECONDS}`);
   return n === 0 ? null : n;
 }
 

@@ -198,6 +198,21 @@ describe('mapping cacheTtlSeconds', () => {
     expect(edited.body).toMatchObject({ cacheTtlSeconds: 5, source: 'manual' });
     expect((await admin.patch(`/admin/mappings/${created.body.id}`).send({ cacheTtlSeconds: 'soon' })).status).toBe(400);
   });
+
+  it('clears the TTL with null without flipping source, and rejects an empty PATCH body', async () => {
+    const conn = await admin.post('/admin/connections').send({ name: 'ttl-clear', adapterType: 'mock', authMode: 'passthrough' });
+    const created = await admin
+      .post('/admin/mappings')
+      .send({ connectionId: conn.body.id, route: '/ttl', method: 'GET', operation: {}, source: 'generated', cacheTtlSeconds: 60 });
+    const cleared = await admin.patch(`/admin/mappings/${created.body.id}`).send({ cacheTtlSeconds: null });
+    expect(cleared.status).toBe(200);
+    // A mapping without a TTL omits the field rather than carrying null.
+    expect(cleared.body).toMatchObject({ source: 'generated' });
+    expect(cleared.body).not.toHaveProperty('cacheTtlSeconds');
+    const empty = await admin.patch(`/admin/mappings/${created.body.id}`).send({});
+    expect(empty.status).toBe(400);
+    expect(empty.body.error.code).toBe('INVALID_INPUT');
+  });
 });
 
 describe('YAML export and import', () => {

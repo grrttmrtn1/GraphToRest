@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMappingFields } from '../../src/mappingEngine/mappingFields';
+import { parseMappingFields, isValidCacheTtl } from '../../src/mappingEngine/mappingFields';
 
 describe('parseMappingFields', () => {
   it('returns only the keys that were provided and upper-cases the method', () => {
@@ -43,5 +43,12 @@ describe('parseMappingFields', () => {
     expect(parseMappingFields({ cacheTtlSeconds: 0 }).cacheTtlSeconds).toBeNull();
     expect(parseMappingFields({ cacheTtlSeconds: null }).cacheTtlSeconds).toBeNull();
     for (const bad of [-1, 1.5, '30', 86_401]) expect(() => parseMappingFields({ cacheTtlSeconds: bad })).toThrow('cacheTtlSeconds');
+  });
+});
+
+describe('isValidCacheTtl', () => {
+  it('accepts whole seconds from 0 to a day and rejects everything else', () => {
+    for (const ok of [0, 1, 30, 86_400]) expect(isValidCacheTtl(ok)).toBe(true);
+    for (const bad of [-1, 1.5, 86_401, NaN, Infinity, '30', null, undefined]) expect(isValidCacheTtl(bad)).toBe(false);
   });
 });
