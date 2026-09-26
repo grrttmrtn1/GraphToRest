@@ -41,7 +41,9 @@ export function decodeCursor(cursor: string): string {
  * Requires: origin exactly `https://graph.microsoft.com`, a path under `/v1.0/` or `/beta/`, and — since this is
  * feasible without restructuring the caller, which already knows the mapping's own request path — that the
  * resource path matches the mapping's own request path (the cursor may only add a query string). The path match is
- * case-insensitive because Graph resource paths are, and Graph may re-case them in `@odata.nextLink`.
+ * case-insensitive because Graph resource paths are, and Graph may re-case them in `@odata.nextLink`. It also ignores
+ * percent-encoding differences within a segment (`alice%40contoso.com` vs `alice@contoso.com`), comparing segment by
+ * segment so a decoded `%2F` can never turn one segment into two.
  *
  * Returns the parsed `url.href`, not the raw input, so the value followed is exactly the value validated.
  */
@@ -55,16 +57,30 @@ export function assertValidGraphCursorUrl(decoded: string, requestPath: string):
   if (url.origin !== GRAPH_ORIGIN) {
     throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
   }
-  const versionMatch = /^\/(v1\.0|beta)(\/.*)?$/.exec(url.pathname);
+  const versionMatch = /^\/(v1\.0|beta)(\/.*)?$/i.exec(url.pathname);
   if (!versionMatch) {
     throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
   }
   const resourcePath = (versionMatch[2] ?? '/').replace(/\/+$/, '') || '/';
   const expectedPath = requestPath.replace(/\/+$/, '') || '/';
-  if (resourcePath.toLowerCase() !== expectedPath.toLowerCase()) {
+  if (canonicalPath(resourcePath) !== canonicalPath(expectedPath)) {
     throw new GatewayError('INVALID_INPUT', 'Invalid cursor', 400);
   }
   return url.href;
+}
+
+/** Lower-cases a path and re-encodes each segment in one canonical form, so only the spelling of a segment varies. */
+function canonicalPath(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => {
+      try {
+        return encodeURIComponent(decodeURIComponent(segment)).toLowerCase();
+      } catch {
+        return segment.toLowerCase();
+      }
+    })
+    .join('/');
 }
 
 export function interpolatePath(template: string, params: Record<string, string>): string {

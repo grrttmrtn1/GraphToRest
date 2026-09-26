@@ -46,7 +46,7 @@ All configuration is via environment variables.
 | `RATE_LIMIT_DEFAULT_BURST` | value of `RATE_LIMIT_DEFAULT` | Default token-bucket burst size. |
 | `CACHE_MAX_TTL_SECONDS` | `300` | Upper bound on any mapping's response-cache TTL. |
 | `CACHE_MAX_ENTRIES` | `1000` | Response-cache capacity; `0` disables caching entirely. |
-| `CACHE_MAX_BYTES` | `52428800` | Upper bound on the response cache's total body size in bytes (50 MiB); least recently used entries are evicted to stay under it, and a single response larger than this is not cached. `0` removes the byte bound. |
+| `CACHE_MAX_BYTES` | `52428800` | Upper bound on the response cache's total body size in bytes (50 MiB); least recently used entries are evicted to stay under it, and a single response larger than this is not cached. `0` removes the byte bound — unlike `CACHE_MAX_ENTRIES`, where `0` turns the cache off. |
 | `OUTBOUND_TIMEOUT_MS` | `30000` | Timeout for outbound GraphQL and OAuth token requests. |
 | `ALLOW_PRIVATE_NETWORK_TARGETS` | `false` | Set to `true` to allow outbound requests to private/loopback/link-local destinations (needed when the GraphQL endpoint runs on the same Docker network or LAN). |
 | `TRUST_PROXY` | `false` | Set when running behind a reverse proxy so login throttling sees real client addresses: use the proxy hop count (usually `1`) or a comma list of proxy addresses/CIDRs. Never `true` unless every connection comes through your proxy, or clients can spoof `X-Forwarded-For`. |

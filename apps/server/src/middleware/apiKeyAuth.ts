@@ -14,9 +14,10 @@ export function createApiKeyAuth(mappingStore: MappingStore, throttle?: ApiAuthT
       }
       const parsed = parsePresentedKey(match[1]);
       const record = parsed ? mappingStore.findApiKeyById(parsed.id) : null;
-      // An address that has spent its failure budget is refused before the scrypt, but only for keys that cannot be
-      // valid (malformed or unknown id) — a real key id always goes on to verification. See ApiAuthThrottle.
-      const retryMs = !record && throttle ? throttle.retryAfterMs(req.ip) : 0;
+      // A key that cannot be valid (malformed or unknown id) spends its failure budget before the scrypt, and an address
+      // that has spent it is refused without hashing. A real key id always goes on to verification and, with a wrong
+      // secret, spends budget afterwards without ever being refused. See ApiAuthThrottle.
+      const retryMs = !record && throttle ? throttle.takeFailure(req.ip) : 0;
       if (retryMs > 0) {
         const retryAfterSeconds = Math.max(1, Math.ceil(retryMs / 1000));
         res.setHeader('Retry-After', String(retryAfterSeconds));
@@ -27,7 +28,7 @@ export function createApiKeyAuth(mappingStore: MappingStore, throttle?: ApiAuthT
       // Always pay for one scrypt so malformed keys, unknown ids and wrong secrets are indistinguishable by timing.
       const secretOk = await verifySecret(parsed?.secret ?? '', record?.hashedKey ?? DUMMY_SECRET_HASH);
       if (!parsed || !record || !secretOk) {
-        throttle?.recordFailure(req.ip);
+        if (record) throttle?.takeFailure(req.ip);
         res.locals.errorCode = 'UNAUTHORIZED';
         res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid API key', details: {} } });
         return;

@@ -49,6 +49,14 @@ describe('pre-auth failure throttle on /api', () => {
     expect(throttled.body.error.details.retryAfterSeconds).toBe(Number(throttled.headers['retry-after']));
   });
 
+  it('spends the budget before hashing, so concurrent unknown keys cannot all get through', async () => {
+    const { app } = setup(3);
+    const responses = await Promise.all(Array.from({ length: 10 }, (_, i) => call(app, `bad${i}.secret`)));
+    const statuses = responses.map((r) => r.status).sort();
+    expect(statuses.filter((s) => s === 401)).toHaveLength(3);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(7);
+  });
+
   it('never throttles a request carrying a real key id', async () => {
     const { app, key } = setup(3);
     for (let i = 0; i < 4; i += 1) await call(app, `bad${i}.secret`);

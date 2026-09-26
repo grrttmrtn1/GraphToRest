@@ -68,7 +68,9 @@ export class ResponseCache {
 
   /**
    * Advances on every eviction. A caller captures it before calling the vendor and passes it to `set`, so a response
-   * fetched before an admin change (mapping edit, credential change) cannot repopulate the cache after it.
+   * fetched before an admin change (mapping edit, credential change) cannot repopulate the cache after it. The counter
+   * is deliberately global: any eviction also drops in-flight writes for unrelated mappings, which costs at most one
+   * extra MISS each and never serves stale data.
    */
   get epoch(): number {
     return this.currentEpoch;

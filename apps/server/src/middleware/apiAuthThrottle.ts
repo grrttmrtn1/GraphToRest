@@ -23,19 +23,14 @@ export class ApiAuthThrottle {
     this.timer.unref();
   }
 
-  /** Milliseconds until `ip` may fail again, or 0 when it still has budget. Does not spend any budget. */
-  retryAfterMs(ip: string | undefined): number {
+  /**
+   * Spends one failure from `ip`'s budget and returns 0, or returns the milliseconds until it may fail again when the
+   * budget is spent. Checking and spending in one synchronous step means concurrent requests cannot all see a full
+   * bucket before any of them records its failure.
+   */
+  takeFailure(ip: string | undefined): number {
     const perMinute = this.options.failuresPerMinute;
     if (perMinute <= 0) return 0;
-    const bucket = this.buckets.get(ip ?? 'unknown');
-    if (!bucket) return 0;
-    const tokens = bucket.tokensAt(this.now());
-    return tokens >= 1 ? 0 : Math.ceil((1 - tokens) / (perMinute / 60_000));
-  }
-
-  recordFailure(ip: string | undefined): void {
-    const perMinute = this.options.failuresPerMinute;
-    if (perMinute <= 0) return;
     const key = ip ?? 'unknown';
     const now = this.now();
     let bucket = this.buckets.get(key);
@@ -43,7 +38,7 @@ export class ApiAuthThrottle {
       bucket = new TokenBucket({ requestsPerMinute: perMinute, burst: perMinute }, now);
       this.buckets.set(key, bucket);
     }
-    bucket.take(now);
+    return bucket.take(now).retryAfterMs;
   }
 
   stop(): void {

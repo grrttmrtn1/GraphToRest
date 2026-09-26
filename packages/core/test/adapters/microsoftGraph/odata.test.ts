@@ -97,6 +97,22 @@ describe('assertValidGraphCursorUrl', () => {
     expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/me/messages', '/users')).toThrow(GatewayError);
   });
 
+  it('matches a next-link whose path spells a parameter unencoded where the request encoded it', () => {
+    const requestPath = interpolatePath('/users/{id}/messages', { id: 'alice@contoso.com' });
+    const link = 'https://graph.microsoft.com/v1.0/users/alice@contoso.com/messages?$skiptoken=x';
+    expect(assertValidGraphCursorUrl(link, requestPath)).toBe(link);
+  });
+
+  it('accepts a next-link whose version segment differs only in case', () => {
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/V1.0/users?$skiptoken=x', '/users')).not.toThrow();
+  });
+
+  it('does not let a decoded slash split one parameter into extra path segments', () => {
+    const requestPath = interpolatePath('/users/{id}', { id: 'a/b' });
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users/a/b', requestPath)).toThrow(GatewayError);
+    expect(() => assertValidGraphCursorUrl('https://graph.microsoft.com/v1.0/users/a%2Fb', requestPath)).not.toThrow();
+  });
+
   it('rejects an unparseable cursor', () => {
     expect(() => assertValidGraphCursorUrl('not a url', '/users')).toThrow(GatewayError);
   });
