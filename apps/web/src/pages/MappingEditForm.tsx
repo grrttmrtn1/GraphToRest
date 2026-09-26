@@ -13,10 +13,12 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false; er
 }
 
 export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone: () => void }) {
+  const initialOperation = JSON.stringify(mapping.operation, null, 2);
+  const initialTemplate = mapping.responseTemplate ? JSON.stringify(mapping.responseTemplate, null, 2) : '';
   const [method, setMethod] = useState(mapping.method);
   const [route, setRoute] = useState(mapping.route);
-  const [operation, setOperation] = useState(JSON.stringify(mapping.operation, null, 2));
-  const [template, setTemplate] = useState(mapping.responseTemplate ? JSON.stringify(mapping.responseTemplate, null, 2) : '');
+  const [operation, setOperation] = useState(initialOperation);
+  const [template, setTemplate] = useState(initialTemplate);
   const [cacheTtl, setCacheTtl] = useState(String(mapping.cacheTtlSeconds ?? 0));
   const [localError, setLocalError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -67,12 +69,16 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
     save.mutate(patch);
   };
 
+  // Only a definitional edit flips the mapping to manual; a cache-TTL change keeps its source.
+  const definitionalEdit =
+    method !== mapping.method || route !== mapping.route || operation !== initialOperation || template !== initialTemplate;
+
   return (
     <div className="panel">
       <h2>
         Edit {mapping.method} {mapping.route}
       </h2>
-      <p className="muted">Saving marks this mapping as manual, so regeneration skips it unless forced.</p>
+      {definitionalEdit && <p className="muted">Saving marks this mapping as manual, so regeneration skips it unless forced.</p>}
       <form onSubmit={submit}>
         <label>
           Method

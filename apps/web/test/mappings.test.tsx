@@ -64,7 +64,9 @@ describe('mappings tab', () => {
   it('saves an edit as a PATCH containing only the fields that changed', async () => {
     const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, route: '/people/{id}', source: 'manual' } }]);
     fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    expect(screen.queryByText(/Saving marks this mapping as manual/)).toBeNull();
     fireEvent.change(screen.getByLabelText('Route'), { target: { value: '/people/{id}' } });
+    expect(screen.getByText(/Saving marks this mapping as manual/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Response template (JSON, empty for passthrough)'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
@@ -81,6 +83,8 @@ describe('mappings tab', () => {
     fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
     expect((screen.getByLabelText('Cache TTL (seconds, 0 = off)') as HTMLInputElement).value).toBe('0');
     fireEvent.change(screen.getByLabelText('Cache TTL (seconds, 0 = off)'), { target: { value: '120' } });
+    // A TTL change is operational, not definitional: the "marks as manual" note must not appear.
+    expect(screen.queryByText(/Saving marks this mapping as manual/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
     // Nothing else present: route/method/operation/responseTemplate would each flip the mapping to "manual" server-side.
