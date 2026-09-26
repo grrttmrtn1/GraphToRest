@@ -7,6 +7,7 @@ import { ErrorPanel, FormError } from '../components/ErrorPanel';
 import { OAuthBanner } from '../components/OAuthBanner';
 import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/PageHeader';
+import { mappingYamlExample } from './MappingsTab';
 
 export function ConnectionsPage() {
   const connections = useQuery({ queryKey: ['connections'], queryFn: api.connections });
@@ -17,14 +18,14 @@ export function ConnectionsPage() {
       <div className="content-grid">
         <div>
           <div className="panel-header">
-            <div><h2>Your data sources</h2><p>Open a connection to configure credentials and REST mappings.</p></div>
+            <div><h2>Your data sources</h2><p>Open a connection to configure credentials and the REST endpoints it exposes.</p></div>
           </div>
           {connections.isError ? (
             <ErrorPanel error={connections.error} onRetry={() => void connections.refetch()} />
           ) : connections.isPending ? (
             <p className="muted" role="status">Loading connections…</p>
           ) : connections.data.length === 0 ? (
-            <div className="empty-state"><div><strong>No connections yet.</strong><p>Create your first connection using the form. You can generate REST mappings immediately afterward.</p></div></div>
+            <div className="empty-state"><div><strong>No connections yet.</strong><p>Create your first connection, then discover its supported operations and publish them as REST endpoints.</p></div></div>
           ) : (
             <div className="table-shell">
               <table>
@@ -50,7 +51,7 @@ export function ConnectionsPage() {
             <div className="panel-header"><div><h2>How setup works</h2><p>A quick path from data source to working endpoint.</p></div></div>
             <ol className="step-list">
               <li><span className="step-number">1</span><div><strong>Connect a source</strong><p>Choose an adapter and how upstream authentication should work.</p></div></li>
-              <li><span className="step-number">2</span><div><strong>Generate mappings</strong><p>Discover operations and turn them into REST routes.</p></div></li>
+              <li><span className="step-number">2</span><div><strong>Create REST endpoints</strong><p>Discover supported upstream operations and give them simple REST routes.</p></div></li>
               <li><span className="step-number">3</span><div><strong>Create an API key</strong><p>Give clients controlled access, then try the API explorer.</p></div></li>
             </ol>
           </div>
@@ -137,7 +138,9 @@ function ImportMappingsForm() {
   });
   return (
     <div className="panel">
-      <div className="panel-header"><div><h2>Import mappings</h2><p>Already have an export? Upload it instead of generating routes again.</p></div><Icon name="upload" /></div>
+      <div className="panel-header"><div><h2>Import endpoints</h2><p>Upload a GraphToRest YAML export or create a YAML list using the format below.</p></div><Icon name="upload" /></div>
+      <pre className="import-example"><code>{mappingYamlExample({ name: 'your-connection-name', adapterType: 'graphql' })}</code></pre>
+      <p className="field-hint import-hint">Replace <code>your-connection-name</code> with an exact existing connection name. An entry with an exported <code>id</code> updates it; without <code>id</code>, it creates a manual endpoint. Imports are all-or-nothing.</p>
       <input
         type="file"
         accept=".yaml,.yml,text/yaml"

@@ -7,6 +7,26 @@ data/
 *.log
 .worktrees/
 .superpowers/
-.claude/worktrees/
+
+# Local AI-assistant configuration and state
+.claude/
+.codex/
+.agents/
+.cursor/
+.continue/
+.windsurf/
+.aider*
+CLAUDE.md
+AGENTS.md
+
+# Local configuration and secrets
 .env
+.env.*
+!.env.example
 docker-compose.override.yml
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore

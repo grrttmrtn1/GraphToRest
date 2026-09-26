@@ -80,6 +80,7 @@ describe('connections list', () => {
     ]);
     renderApp('/connections');
     await screen.findByRole('link', { name: 'mock-conn' });
+    expect(screen.getByText((_, element) => element?.tagName === 'P' && (element.textContent?.includes('Replace your-connection-name with an exact existing connection name') ?? false))).toBeTruthy();
     const file = new File(['- route: GET /a\n'], 'mappings.yaml', { type: 'text/yaml' });
     fireEvent.change(screen.getByLabelText('YAML file'), { target: { files: [file] } });
     expect(await screen.findByText('Imported 2 mapping(s).')).toBeTruthy();

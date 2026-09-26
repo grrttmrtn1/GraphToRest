@@ -8,7 +8,7 @@ export function TestPanelPage() {
   const [apiKey, setApiKey] = useState(readTestApiKey);
   return (
     <section>
-      <PageHeader eyebrow="Step 3 · Test" title="Test" description="Explore every generated route, inspect its schema, and send a real request without leaving the browser." />
+      <PageHeader eyebrow="Step 3 · Test" title="Test" description="Browse every published REST route and send a real request without leaving the browser. This explorer is generated automatically from your endpoints." />
       <div className="panel">
         <div className="panel-header"><div><h2>Request authentication</h2><p>Requests below go to <code>/api/*</code> exactly as a real client would send them.</p></div><span className={`status-badge ${apiKey ? 'success' : 'warning'}`}>{apiKey ? 'Key ready' : 'Key required'}</span></div>
         <label>

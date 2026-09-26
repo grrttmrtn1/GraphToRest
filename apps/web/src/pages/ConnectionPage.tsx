@@ -11,7 +11,7 @@ import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/PageHeader';
 
 type Tab = 'overview' | 'credentials' | 'mappings';
-const TAB_LABELS: Record<Tab, string> = { overview: 'Overview', credentials: 'Credentials', mappings: 'Mappings' };
+const TAB_LABELS: Record<Tab, string> = { overview: 'Overview', credentials: 'Credentials', mappings: 'Endpoints' };
 
 export function ConnectionPage() {
   const { id = '' } = useParams();

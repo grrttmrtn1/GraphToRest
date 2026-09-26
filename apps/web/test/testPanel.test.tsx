@@ -43,6 +43,7 @@ describe('test panel page', () => {
     mockFetch([SESSION_ROUTE]);
     renderApp('/test');
     const input = (await screen.findByLabelText('API key')) as HTMLInputElement;
+    expect(screen.getByText(/explorer is generated automatically from your endpoints/)).toBeTruthy();
     expect(input.value).toBe('stored.key');
     expect(await screen.findByText('swagger-panel key=stored.key')).toBeTruthy();
     fireEvent.change(input, { target: { value: 'new.key' } });

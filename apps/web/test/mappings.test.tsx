@@ -2,7 +2,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderApp, mockFetch, SESSION_ROUTE } from './render';
 import { downloadText } from '../src/browser';
-import { summarizeOperation } from '../src/pages/MappingsTab';
+import { mappingYamlExample, summarizeOperation } from '../src/pages/MappingsTab';
+import { operationExample } from '../src/pages/MappingEditForm';
 
 vi.mock('../src/browser', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/browser')>()),
@@ -36,7 +37,7 @@ async function openMappingsTab(extraRoutes: Parameters<typeof mockFetch>[0] = []
     ...extraRoutes,
   ]);
   renderApp('/connections/c1');
-  fireEvent.click(await screen.findByRole('tab', { name: 'Mappings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'Endpoints' }));
   await screen.findByRole('button', { name: '/users/{id}' });
   return mocked;
 }
@@ -45,7 +46,22 @@ describe('mappings tab', () => {
   it('lists only this connection’s mappings', async () => {
     await openMappingsTab();
     expect(screen.queryByText('/elsewhere')).toBeNull();
-    expect(screen.getByText('generated')).toBeTruthy();
+    expect(screen.getAllByText('generated')).toHaveLength(2);
+  });
+
+  it('explains where mappings come from and shows their format in context', async () => {
+    await openMappingsTab();
+    expect(screen.getByRole('heading', { name: 'How REST endpoints are created' })).toBeTruthy();
+    expect(screen.getByText(/adapter for the upstream operations/)).toBeTruthy();
+    expect(screen.getByText(/adapter supplies the upstream operations/)).toBeTruthy();
+    expect(screen.getByText(/automatically generates its own OpenAPI document/)).toBeTruthy();
+    fireEvent.click(screen.getByText('View field reference and YAML example'));
+    expect(screen.getByText('What each field means')).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.tagName === 'P' && (element.textContent?.includes('connection must exactly match') ?? false))).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    fireEvent.click(screen.getByText('Show adapter operation example'));
+    expect(screen.getByText(/Set a variable to/)).toBeTruthy();
   });
 
   it('generates with the vendor token header and reports counts', async () => {
@@ -54,8 +70,8 @@ describe('mappings tab', () => {
     ]);
     fireEvent.change(screen.getByLabelText('Vendor token'), { target: { value: 'vendor-abc' } });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Overwrite manual mappings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Generate mappings' }));
-    expect(await screen.findByText('Created 2, updated 0, skipped 1, conflicts 0.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Discover and create endpoints' }));
+    expect(await screen.findByText('Endpoints: 2 created, 0 updated, 1 skipped, 0 conflicts.')).toBeTruthy();
     const call = calls.find((c) => c.path === '/admin/connections/c1/mappings/generate')!;
     expect(call.body).toEqual({ force: true });
     expect(call.headers['X-Vendor-Token']).toBe('vendor-abc');
@@ -71,7 +87,7 @@ describe('mappings tab', () => {
       },
     ]);
     fireEvent.change(screen.getByLabelText('Vendor token'), { target: { value: 'expired-vendor-token' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate mappings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discover and create endpoints' }));
     expect(await screen.findByText('This request requires a vendor access token')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'mock-conn' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Sign in' })).toBeNull();
@@ -163,6 +179,34 @@ describe('mappings tab', () => {
     await waitFor(() => expect(downloadText).toHaveBeenCalledWith('mock-conn-mappings.yaml', '- route: GET /users/{id}\n'));
   });
 
+  it('imports YAML without leaving the mapping screen', async () => {
+    const { calls } = await openMappingsTab([
+      { method: 'POST', path: '/admin/mappings/import', body: { imported: 1, warnings: ['Imported mappings are manual'] } },
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Import YAML' }));
+    expect(screen.getByRole('heading', { name: 'Import endpoints from YAML' })).toBeTruthy();
+    expect(screen.getByText(/whole file is rejected if any entry is invalid/)).toBeTruthy();
+    const file = new File(['- route: GET /a\n'], 'mappings.yaml', { type: 'text/yaml' });
+    fireEvent.change(screen.getByLabelText('Import mappings YAML'), { target: { files: [file] } });
+    expect(await screen.findByText('Imported 1 mapping(s).')).toBeTruthy();
+    expect(screen.getByText('Imported mappings are manual')).toBeTruthy();
+    expect(calls.find((c) => c.path === '/admin/mappings/import')!.body).toEqual({ yaml: '- route: GET /a\n' });
+  });
+
+  it('rejects non-object operations and non-string response templates locally', async () => {
+    const { calls } = await openMappingsTab();
+    fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));
+    fireEvent.change(screen.getByLabelText('Operation (JSON)'), { target: { value: '[]' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
+    expect(await screen.findByText('Operation must be a JSON object')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Operation (JSON)'), { target: { value: '{}' } });
+    fireEvent.change(screen.getByLabelText('Response template (JSON, empty for passthrough)'), { target: { value: '{"id": 1}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mapping' }));
+    expect(await screen.findByText('Response template must be a JSON object whose values are field-path strings')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+
   it('hides the vendor token field for managed connections', async () => {
     mockFetch([
       SESSION_ROUTE,
@@ -170,8 +214,8 @@ describe('mappings tab', () => {
       { path: '/admin/mappings', body: [] },
     ]);
     renderApp('/connections/c1');
-    fireEvent.click(await screen.findByRole('tab', { name: 'Mappings' }));
-    await screen.findByText('No mappings for this connection yet.');
+    fireEvent.click(await screen.findByRole('tab', { name: 'Endpoints' }));
+    await screen.findByText('No REST endpoints for this connection yet.');
     expect(screen.queryByLabelText('Vendor token')).toBeNull();
   });
 });
@@ -182,5 +226,16 @@ describe('summarizeOperation', () => {
     const long = summarizeOperation({ query: 'y'.repeat(200) });
     expect(long).toHaveLength(80);
     expect(long.endsWith('...')).toBe(true);
+  });
+});
+
+describe('mapping examples', () => {
+  it('shows adapter-specific operations and a complete import shape', () => {
+    expect(operationExample('microsoft-graph')).toEqual({ kind: 'get', path: '/users/{id}' });
+    expect(operationExample('graphql')).toMatchObject({ variables: { id: '$params.id' } });
+    expect(mappingYamlExample({ ...CONN, name: 'customer-directory' })).toContain('connection: "customer-directory"');
+    expect(mappingYamlExample({ ...CONN, adapterType: 'graphql' })).toContain('\n  operation:\n    query:');
+    expect(mappingYamlExample({ ...CONN, adapterType: 'graphql' })).toContain("id: '$.user.id'");
+    expect(mappingYamlExample({ ...CONN, name: 'ms', adapterType: 'microsoft-graph' })).toContain('\n  operation:\n    kind: get');
   });
 });
