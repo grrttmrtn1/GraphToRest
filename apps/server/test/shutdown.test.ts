@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { silentLogger } from '@graphtorest/core';
-import { createShutdown, installShutdownHandlers } from '../src/shutdown';
+import { createShutdown, installShutdownHandlers, runCleanupSteps } from '../src/shutdown';
 
 function fakeServer() {
   let onClosed: (() => void) | undefined;
@@ -53,5 +53,31 @@ describe('graceful shutdown', () => {
     proc.emit('SIGTERM');
     proc.emit('SIGINT');
     expect(shutdown.mock.calls).toEqual([['SIGTERM'], ['SIGINT']]);
+  });
+});
+
+describe('runCleanupSteps', () => {
+  it('runs every step even when an earlier one throws, then rethrows the first error', () => {
+    const ran: string[] = [];
+    const first = new Error('first');
+    expect(() =>
+      runCleanupSteps([
+        () => ran.push('a'),
+        () => {
+          ran.push('b');
+          throw first;
+        },
+        () => {
+          ran.push('c');
+          throw new Error('second');
+        },
+        () => ran.push('db.close'),
+      ])
+    ).toThrow(first);
+    expect(ran).toEqual(['a', 'b', 'c', 'db.close']);
+  });
+
+  it('returns normally when every step succeeds', () => {
+    expect(() => runCleanupSteps([() => undefined, () => undefined])).not.toThrow();
   });
 });

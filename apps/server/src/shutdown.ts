@@ -52,6 +52,22 @@ export function createShutdown(options: ShutdownOptions): (signal: string) => vo
   };
 }
 
+/** Runs every cleanup step even if an earlier one throws (so the last one — closing the database — always runs), then
+ * rethrows the first error. */
+export function runCleanupSteps(steps: Array<() => void>): void {
+  let firstError: unknown;
+  let failed = false;
+  for (const step of steps) {
+    try {
+      step();
+    } catch (err) {
+      if (!failed) firstError = err;
+      failed = true;
+    }
+  }
+  if (failed) throw firstError;
+}
+
 export function installShutdownHandlers(shutdown: (signal: string) => void, proc: Pick<NodeJS.Process, 'on'> = process): void {
   proc.on('SIGTERM', () => shutdown('SIGTERM'));
   proc.on('SIGINT', () => shutdown('SIGINT'));

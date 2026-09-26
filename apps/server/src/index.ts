@@ -18,7 +18,7 @@ import { createApp } from './app';
 import { RateLimiter } from './middleware/rateLimit';
 import { LoginThrottle } from './middleware/loginThrottle';
 import { ApiAuthThrottle } from './middleware/apiAuthThrottle';
-import { createShutdown, installShutdownHandlers } from './shutdown';
+import { createShutdown, installShutdownHandlers, runCleanupSteps } from './shutdown';
 import { bootstrapAdmin, wrapBootstrapError } from './bootstrap';
 
 const PERMISSION_CODES = new Set(['EACCES', 'EPERM', 'SQLITE_CANTOPEN', 'SQLITE_READONLY']);
@@ -80,12 +80,8 @@ function main(): void {
     createShutdown({
       server,
       logger,
-      cleanup: () => {
-        rateLimiter.stop();
-        loginThrottle.stop();
-        apiAuthThrottle.stop();
-        db.close();
-      },
+      cleanup: () =>
+        runCleanupSteps([() => rateLimiter.stop(), () => loginThrottle.stop(), () => apiAuthThrottle.stop(), () => db.close()]),
     })
   );
 }
