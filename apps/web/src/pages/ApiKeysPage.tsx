@@ -151,19 +151,29 @@ export function ApiKeysPage() {
   );
 }
 
+type RateLimitMode = 'default' | 'unlimited' | 'custom';
+
+function modeOf(setting: RateLimitSetting): RateLimitMode {
+  if (setting === null) return 'default';
+  if (setting === 'unlimited') return 'unlimited';
+  return 'custom';
+}
+
+/** An empty burst means "same as the rate". */
+function settingFor(mode: RateLimitMode, rate: string, burst: string): RateLimitSetting {
+  if (mode === 'default') return null;
+  if (mode === 'unlimited') return 'unlimited';
+  return { requestsPerMinute: Number(rate), burst: burst.trim() ? Number(burst) : Number(rate) };
+}
+
 function RateLimitEditor({ apiKey, onDone }: { apiKey: ApiKeySummary; onDone: () => void }) {
-  const initialMode = apiKey.rateLimit === null ? 'default' : apiKey.rateLimit === 'unlimited' ? 'unlimited' : 'custom';
-  const [mode, setMode] = useState<'default' | 'unlimited' | 'custom'>(initialMode);
+  const [mode, setMode] = useState<RateLimitMode>(modeOf(apiKey.rateLimit));
   const custom = typeof apiKey.rateLimit === 'object' && apiKey.rateLimit !== null ? apiKey.rateLimit : null;
   const [rate, setRate] = useState(custom ? String(custom.requestsPerMinute) : '');
   const [burst, setBurst] = useState(custom ? String(custom.burst) : '');
   const queryClient = useQueryClient();
   const save = useMutation({
-    mutationFn: () => {
-      const setting: RateLimitSetting =
-        mode === 'default' ? null : mode === 'unlimited' ? 'unlimited' : { requestsPerMinute: Number(rate), burst: burst.trim() ? Number(burst) : Number(rate) };
-      return api.updateApiKeyRateLimit(apiKey.id, setting);
-    },
+    mutationFn: () => api.updateApiKeyRateLimit(apiKey.id, settingFor(mode, rate, burst)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       onDone();
