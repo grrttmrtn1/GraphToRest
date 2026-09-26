@@ -53,7 +53,7 @@ function parseRateLimitDefault(env: NodeJS.ProcessEnv): ServerConfig['rateLimitD
     if (isSet(env.RATE_LIMIT_DEFAULT_BURST)) throw new Error('RATE_LIMIT_DEFAULT_BURST requires RATE_LIMIT_DEFAULT to be set');
     return null;
   }
-  const requestsPerMinute = parseInteger(env, 'RATE_LIMIT_DEFAULT', 0, 1, 1_000_000);
+  const requestsPerMinute = parseInteger(env, 'RATE_LIMIT_DEFAULT', 1, 1, 1_000_000);
   const burst = parseInteger(env, 'RATE_LIMIT_DEFAULT_BURST', requestsPerMinute, 1, 1_000_000);
   return { requestsPerMinute, burst };
 }

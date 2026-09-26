@@ -124,7 +124,7 @@ async function postTokenRequest(tokenUrl: string, form: Record<string, string>):
   }
   if (!response.ok || !body || typeof body.access_token !== 'string') {
     const description = typeof body?.error_description === 'string' ? redactVendorText(body.error_description) : undefined;
-    throw new GatewayError('VENDOR_AUTH_FAILED', description ?? 'The vendor token endpoint rejected the request', 502, {
+    throw new GatewayError('VENDOR_AUTH_FAILED', description || 'The vendor token endpoint rejected the request', 502, {
       vendorError: typeof body?.error === 'string' ? redactVendorText(body.error, 100) : undefined,
       status: response.status,
     });

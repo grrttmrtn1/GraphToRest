@@ -7,7 +7,10 @@ describe('parseConnectionConfig', () => {
     expect(parseConnectionConfig(null)).toBeNull();
   });
   it('rejects non-objects', () => {
-    for (const bad of [123, 'x', [1]]) expect(() => parseConnectionConfig(bad)).toThrow('"config" must be an object');
+    for (const bad of [123, 'x', [1]]) {
+      expect(() => parseConnectionConfig(bad)).toThrow('"config" must be an object');
+      expect(() => parseConnectionConfig(bad)).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+    }
   });
   it('validates and trims config.endpoint', () => {
     expect(parseConnectionConfig({ endpoint: ' https://api.example.com/graphql ', extra: 1 })).toEqual({

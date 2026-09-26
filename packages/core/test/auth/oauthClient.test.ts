@@ -166,6 +166,14 @@ describe('token requests', () => {
     expect(JSON.stringify(err.details) + err.message).not.toContain('shh-secret');
   });
 
+  it('falls back to the generic message when the vendor sends an empty error_description', async () => {
+    nock(LOGIN).post(TOKEN_PATH).reply(400, { error: 'invalid_grant', error_description: '' });
+    await expect(requestClientCredentialsToken('microsoft-graph', msCreds)).rejects.toMatchObject({
+      code: 'VENDOR_AUTH_FAILED',
+      message: 'The vendor token endpoint rejected the request',
+    });
+  });
+
   it('maps a 200 response with no access_token to VENDOR_AUTH_FAILED', async () => {
     nock(LOGIN).post(TOKEN_PATH).reply(200, { nope: true });
     await expect(requestClientCredentialsToken('microsoft-graph', msCreds)).rejects.toMatchObject({ code: 'VENDOR_AUTH_FAILED' });

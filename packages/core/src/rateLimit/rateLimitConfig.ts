@@ -28,8 +28,8 @@ export function parseRateLimitSetting(input: unknown): RateLimitSetting {
     throw invalid('"rateLimit" must be null, "unlimited", or { requestsPerMinute, burst? }');
   }
   const raw = input as Record<string, unknown>;
-  const unknown = Object.keys(raw).filter((key) => key !== 'requestsPerMinute' && key !== 'burst');
-  if (unknown.length > 0) throw invalid(`Unknown rateLimit field(s): ${unknown.join(', ')}`);
+  const unknownFields = Object.keys(raw).filter((key) => key !== 'requestsPerMinute' && key !== 'burst');
+  if (unknownFields.length > 0) throw invalid(`Unknown rateLimit field(s): ${unknownFields.join(', ')}`);
   const requestsPerMinute = positiveInt(raw.requestsPerMinute, 'rateLimit.requestsPerMinute');
   const burst = raw.burst === undefined ? requestsPerMinute : positiveInt(raw.burst, 'rateLimit.burst');
   return { requestsPerMinute, burst };
