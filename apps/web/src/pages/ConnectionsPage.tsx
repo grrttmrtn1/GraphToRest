@@ -5,43 +5,57 @@ import { api } from '../api';
 import { readFileText } from '../browser';
 import { ErrorPanel, FormError } from '../components/ErrorPanel';
 import { OAuthBanner } from '../components/OAuthBanner';
+import { Icon } from '../components/Icon';
+import { PageHeader } from '../components/PageHeader';
 
 export function ConnectionsPage() {
   const connections = useQuery({ queryKey: ['connections'], queryFn: api.connections });
   return (
     <section>
-      <h1>Connections</h1>
+      <PageHeader eyebrow="Step 1 · Connect" title="Connections" description="Link GraphToRest to the GraphQL services you want to expose as straightforward REST endpoints." />
       <OAuthBanner />
-      {connections.isError ? (
-        <ErrorPanel error={connections.error} onRetry={() => void connections.refetch()} />
-      ) : connections.isPending ? (
-        <p className="muted">Loading…</p>
-      ) : connections.data.length === 0 ? (
-        <p className="muted">No connections yet.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Adapter</th>
-              <th>Auth mode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {connections.data.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <Link to={`/connections/${c.id}`}>{c.name}</Link>
-                </td>
-                <td>{c.adapterType}</td>
-                <td>{c.authMode}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <CreateConnectionForm />
-      <ImportMappingsForm />
+      <div className="content-grid">
+        <div>
+          <div className="panel-header">
+            <div><h2>Your data sources</h2><p>Open a connection to configure credentials and REST mappings.</p></div>
+          </div>
+          {connections.isError ? (
+            <ErrorPanel error={connections.error} onRetry={() => void connections.refetch()} />
+          ) : connections.isPending ? (
+            <p className="muted" role="status">Loading connections…</p>
+          ) : connections.data.length === 0 ? (
+            <div className="empty-state"><div><strong>No connections yet.</strong><p>Create your first connection using the form. You can generate REST mappings immediately afterward.</p></div></div>
+          ) : (
+            <div className="table-shell">
+              <table>
+                <thead><tr><th>Name</th><th>Adapter</th><th>Authentication</th><th aria-label="Open" /></tr></thead>
+                <tbody>
+                  {connections.data.map((c) => (
+                    <tr key={c.id}>
+                      <td><div className="cell-title"><Link to={`/connections/${c.id}`}>{c.name}</Link><small>{c.id}</small></div></td>
+                      <td><span className="badge">{friendlyAdapter(c.adapterType)}</span></td>
+                      <td><span className={`badge ${c.authMode === 'managed' ? 'accent' : ''}`}>{friendlyAuth(c.authMode)}</span></td>
+                      <td><Link to={`/connections/${c.id}`} aria-label={`Open ${c.name}`}><Icon name="arrow-right" /></Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="stack">
+          <CreateConnectionForm />
+          <ImportMappingsForm />
+          <div className="panel">
+            <div className="panel-header"><div><h2>How setup works</h2><p>A quick path from data source to working endpoint.</p></div></div>
+            <ol className="step-list">
+              <li><span className="step-number">1</span><div><strong>Connect a source</strong><p>Choose an adapter and how upstream authentication should work.</p></div></li>
+              <li><span className="step-number">2</span><div><strong>Generate mappings</strong><p>Discover operations and turn them into REST routes.</p></div></li>
+              <li><span className="step-number">3</span><div><strong>Create an API key</strong><p>Give clients controlled access, then try the API explorer.</p></div></li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -70,7 +84,7 @@ function CreateConnectionForm() {
   });
   return (
     <div className="panel">
-      <h2>New connection</h2>
+      <div className="panel-header"><div><h2>New connection</h2><p>Start by choosing the kind of source you want to connect.</p></div></div>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -79,14 +93,15 @@ function CreateConnectionForm() {
       >
         <label>
           Name
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Customer directory" required />
+          <span className="field-hint">A friendly name your team will recognize.</span>
         </label>
         <label>
           Adapter
           <select value={selectedAdapter} onChange={(e) => setAdapterType(e.target.value)}>
             {(adapters.data ?? []).map((type) => (
               <option key={type} value={type}>
-                {type}
+                {friendlyAdapter(type)}
               </option>
             ))}
           </select>
@@ -94,19 +109,20 @@ function CreateConnectionForm() {
         <label>
           Auth mode
           <select value={authMode} onChange={(e) => setAuthMode(e.target.value)}>
-            <option value="passthrough">passthrough</option>
-            <option value="managed">managed</option>
+            <option value="passthrough">Pass through client token</option>
+            <option value="managed">Managed by gateway</option>
           </select>
+          <span className="field-hint">{authMode === 'managed' ? 'GraphToRest stores credentials and authenticates upstream.' : 'Each request supplies its own upstream access token.'}</span>
         </label>
         {selectedAdapter === 'graphql' && (
           <label>
             GraphQL endpoint URL
-            <input type="url" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} required />
+            <input type="url" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://api.example.com/graphql" required />
           </label>
         )}
         <FormError error={create.error ?? adapters.error} />
         <button type="submit" disabled={create.isPending || !selectedAdapter}>
-          Create connection
+          <Icon name="plus" /> {create.isPending ? 'Creating…' : 'Create connection'}
         </button>
       </form>
     </div>
@@ -121,8 +137,7 @@ function ImportMappingsForm() {
   });
   return (
     <div className="panel">
-      <h2>Import mappings from YAML</h2>
-      <p className="muted">Uses the same format as <code>gtr mapping export</code>. Nothing is written if any entry is invalid.</p>
+      <div className="panel-header"><div><h2>Import mappings</h2><p>Already have an export? Upload it instead of generating routes again.</p></div><Icon name="upload" /></div>
       <input
         type="file"
         accept=".yaml,.yml,text/yaml"
@@ -142,4 +157,14 @@ function ImportMappingsForm() {
       ))}
     </div>
   );
+}
+
+function friendlyAdapter(value: string): string {
+  if (value === 'microsoft-graph') return 'Microsoft Graph';
+  if (value === 'graphql') return 'GraphQL';
+  return value === 'mock' ? 'Mock' : value;
+}
+
+function friendlyAuth(value: string): string {
+  return value === 'managed' ? 'Managed' : 'Passthrough';
 }

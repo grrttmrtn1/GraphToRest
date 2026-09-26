@@ -75,26 +75,30 @@ export function MappingEditForm({ mapping, onDone }: { mapping: Mapping; onDone:
 
   return (
     <div className="panel">
-      <h2>
-        Edit {mapping.method} {mapping.route}
-      </h2>
+      <div className="panel-header"><div><h2>Edit mapping</h2><p><span className={`method-badge ${mapping.method.toLowerCase()}`}>{mapping.method}</span> <code>{mapping.route}</code></p></div></div>
       {definitionalEdit && <p className="muted">Saving marks this mapping as manual, so regeneration skips it unless forced.</p>}
       <form onSubmit={submit}>
-        <label>
-          Method
-          <input value={method} onChange={(e) => setMethod(e.target.value)} required />
-        </label>
-        <label>
-          Route
-          <input value={route} onChange={(e) => setRoute(e.target.value)} required />
-        </label>
+        <div className="form-grid">
+          <label>
+            Method
+            <select value={method} onChange={(e) => setMethod(e.target.value)} required>
+              {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => <option key={value}>{value}</option>)}
+            </select>
+          </label>
+          <label>
+            Route
+            <input value={route} onChange={(e) => setRoute(e.target.value)} placeholder="/resources/{id}" required />
+          </label>
+        </div>
         <label>
           Operation (JSON)
-          <textarea value={operation} onChange={(e) => setOperation(e.target.value)} />
+          <textarea aria-label="Operation (JSON)" value={operation} onChange={(e) => setOperation(e.target.value)} />
+          <span className="field-hint">The GraphQL or adapter operation executed for this route.</span>
         </label>
         <label>
           Response template (JSON, empty for passthrough)
-          <textarea value={template} onChange={(e) => setTemplate(e.target.value)} />
+          <textarea aria-label="Response template (JSON, empty for passthrough)" value={template} onChange={(e) => setTemplate(e.target.value)} />
+          <span className="field-hint">Optionally reshape the upstream response before returning it.</span>
         </label>
         <label>
           Cache TTL (seconds, 0 = off)

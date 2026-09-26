@@ -6,6 +6,7 @@ import { ConfirmButton } from '../components/ConfirmButton';
 import { ErrorPanel, FormError } from '../components/ErrorPanel';
 import type { Connection } from '../types';
 import { MappingEditForm } from './MappingEditForm';
+import { Icon } from '../components/Icon';
 
 export function summarizeOperation(operation: Record<string, unknown>): string {
   const text = JSON.stringify(operation);
@@ -41,7 +42,7 @@ export function MappingsTab({ connection }: { connection: Connection }) {
   return (
     <div>
       <div className="panel">
-        <h2>Generate</h2>
+        <div className="panel-header"><div><h2>Discover REST endpoints</h2><p>Inspect the upstream schema and create REST routes automatically. Existing manual changes are protected by default.</p></div><Icon name="sparkles" /></div>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -51,15 +52,16 @@ export function MappingsTab({ connection }: { connection: Connection }) {
           {isPassthrough && (
             <label>
               Vendor token
-              <input type="password" value={vendorToken} onChange={(e) => setVendorToken(e.target.value)} autoComplete="off" required />
+              <input aria-label="Vendor token" type="password" value={vendorToken} onChange={(e) => setVendorToken(e.target.value)} placeholder="Paste a temporary upstream token" autoComplete="off" required />
+              <span className="field-hint">Used only for this discovery request. It is not stored.</span>
             </label>
           )}
           <label className="inline">
-            <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
-            Overwrite manual mappings
+            <input aria-label="Overwrite manual mappings" type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+            Overwrite manual mappings <span className="muted">(use with care)</span>
           </label>
           <button type="submit" disabled={generate.isPending}>
-            Generate mappings
+            <Icon name="sparkles" /> {generate.isPending ? 'Discovering schema…' : 'Generate mappings'}
           </button>
         </form>
         <FormError error={generate.error} />
@@ -71,21 +73,20 @@ export function MappingsTab({ connection }: { connection: Connection }) {
         )}
       </div>
 
-      <div className="toolbar">
-        <button type="button" onClick={() => exportYaml.mutate()} disabled={exportYaml.isPending}>
-          Export YAML
-        </button>
-        <FormError error={exportYaml.error} />
+      <div className="panel-header">
+        <div><h2>REST mappings</h2><p>Each mapping connects a public REST route to an upstream operation. Select a route to edit it.</p></div>
+        <div className="toolbar"><button type="button" onClick={() => exportYaml.mutate()} disabled={exportYaml.isPending}>Export YAML</button></div>
       </div>
+      <FormError error={exportYaml.error} />
 
       {mappings.isError ? (
         <ErrorPanel error={mappings.error} onRetry={() => void mappings.refetch()} />
       ) : mappings.isPending ? (
         <p className="muted">Loading…</p>
       ) : own.length === 0 ? (
-        <p className="muted">No mappings for this connection yet.</p>
+        <div className="empty-state compact"><div><strong>No mappings for this connection yet.</strong><p>Generate mappings above to turn discoverable operations into REST routes.</p></div></div>
       ) : (
-        <table>
+        <div className="table-shell"><table>
           <thead>
             <tr>
               <th>Method</th>
@@ -98,13 +99,13 @@ export function MappingsTab({ connection }: { connection: Connection }) {
           <tbody>
             {own.map((m) => (
               <tr key={m.id} className={m.id === editingId ? 'selected' : ''}>
-                <td>{m.method}</td>
+                <td><span className={`method-badge ${m.method.toLowerCase()}`}>{m.method}</span></td>
                 <td>
                   <button type="button" className="link" onClick={() => setEditingId(m.id)}>
                     {m.route}
                   </button>
                 </td>
-                <td>{m.source}</td>
+                <td><span className={`badge ${m.source === 'generated' ? 'accent' : 'warning'}`}>{m.source}</span></td>
                 <td>
                   <code>{summarizeOperation(m.operation)}</code>
                 </td>
@@ -116,7 +117,7 @@ export function MappingsTab({ connection }: { connection: Connection }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       <FormError error={remove.error} />
       {editing && <MappingEditForm key={editing.id} mapping={editing} onDone={() => setEditingId(null)} />}

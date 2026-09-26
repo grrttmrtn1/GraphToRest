@@ -44,15 +44,26 @@ describe('apiFetch', () => {
     await expect(apiFetch('/admin/x')).rejects.toMatchObject({ status: 0, code: 'NETWORK_ERROR' });
   });
 
-  it('calls the unauthorized handler on 401, except for the login request itself', async () => {
+  it('calls the unauthorized handler only for an admin-auth 401, except for the login request itself', async () => {
     const handler = vi.fn();
     setUnauthorizedHandler(handler);
     const envelope = { error: { code: 'UNAUTHORIZED', message: 'nope', details: {} } };
     mockFetch([
       { path: '/admin/connections', status: 401, body: envelope },
+      {
+        method: 'POST',
+        path: '/admin/connections/c1/mappings/generate',
+        status: 401,
+        body: { error: { code: 'MISSING_VENDOR_TOKEN', message: 'A vendor token is required', details: {} } },
+      },
       { method: 'POST', path: '/admin/login', status: 401, body: envelope },
     ]);
     await expect(apiFetch('/admin/connections')).rejects.toMatchObject({ status: 401 });
+    expect(handler).toHaveBeenCalledTimes(1);
+    await expect(apiFetch('/admin/connections/c1/mappings/generate', { method: 'POST', body: {} })).rejects.toMatchObject({
+      status: 401,
+      code: 'MISSING_VENDOR_TOKEN',
+    });
     expect(handler).toHaveBeenCalledTimes(1);
     await expect(apiFetch('/admin/login', { method: 'POST', body: {} })).rejects.toMatchObject({ status: 401 });
     expect(handler).toHaveBeenCalledTimes(1);

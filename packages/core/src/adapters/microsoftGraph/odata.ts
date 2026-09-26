@@ -89,6 +89,10 @@ export function interpolatePath(template: string, params: Record<string, string>
     if (value === undefined) {
       throw new Error(`Missing path parameter "${name}" for template "${template}"`);
     }
+    // encodeURIComponent leaves "." alone, and URL resolution would turn /users/.. into a different Graph resource.
+    if (value === '.' || value === '..') {
+      throw new GatewayError('INVALID_INPUT', `Path parameter "${name}" must not be "." or ".."`, 400);
+    }
     return encodeURIComponent(value);
   });
 }

@@ -61,6 +61,22 @@ describe('mappings tab', () => {
     expect(call.headers['X-Vendor-Token']).toBe('vendor-abc');
   });
 
+  it('shows a vendor-auth 401 inline without ending the admin session', async () => {
+    await openMappingsTab([
+      {
+        method: 'POST',
+        path: '/admin/connections/c1/mappings/generate',
+        status: 401,
+        body: { error: { code: 'MISSING_VENDOR_TOKEN', message: 'This request requires a vendor access token', details: {} } },
+      },
+    ]);
+    fireEvent.change(screen.getByLabelText('Vendor token'), { target: { value: 'expired-vendor-token' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate mappings' }));
+    expect(await screen.findByText('This request requires a vendor access token')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'mock-conn' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).toBeNull();
+  });
+
   it('saves an edit as a PATCH containing only the fields that changed', async () => {
     const { calls } = await openMappingsTab([{ method: 'PATCH', path: '/admin/mappings/m1', body: { ...MAPPING, route: '/people/{id}', source: 'manual' } }]);
     fireEvent.click(screen.getByRole('button', { name: '/users/{id}' }));

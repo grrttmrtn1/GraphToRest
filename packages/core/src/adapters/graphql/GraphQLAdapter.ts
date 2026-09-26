@@ -28,7 +28,8 @@ export class GraphQLAdapter implements Adapter {
     if (!query) {
       throw new GatewayError('UNSUPPORTED_OPERATION', 'GraphQL operation is missing a "query" string', 500);
     }
-    return client.execute({ query, variables: operation.variables as Record<string, unknown> | undefined });
+    const variables = operation.variables as Record<string, unknown> | undefined;
+    return client.execute({ query, variables: variables && coerceScalarVariables(query, variables) });
   }
 
   private clientFor(authContext: AuthContext): GraphQLHttpClient {
@@ -38,4 +39,37 @@ export class GraphQLAdapter implements Adapter {
     }
     return new GraphQLHttpClient(endpoint, authContext.authMode ?? 'passthrough', authContext.vendorToken);
   }
+}
+
+const VARIABLE_DEFINITION = /\$(\w+)\s*:\s*(\w+)/g;
+
+/**
+ * Route parameters always arrive as strings, but a GraphQL server rejects "42" for an `Int` variable. Converts string
+ * values of variables the query declares as non-list `Int`, `Float` or `Boolean`; other values pass through unchanged.
+ */
+export function coerceScalarVariables(query: string, variables: Record<string, unknown>): Record<string, unknown> {
+  const declared = new Map<string, string>();
+  for (const [, name, type] of query.matchAll(VARIABLE_DEFINITION)) declared.set(name, type);
+  const coerced: Record<string, unknown> = { ...variables };
+  for (const [name, value] of Object.entries(variables)) {
+    const type = declared.get(name);
+    if (typeof value !== 'string' || !type) continue;
+    if (type === 'Int') {
+      const n = Number(value);
+      if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(n) || n > 2_147_483_647 || n < -2_147_483_648) throw invalidVariable(name, type);
+      coerced[name] = n;
+    } else if (type === 'Float') {
+      const n = Number(value);
+      if (value.trim() === '' || !Number.isFinite(n)) throw invalidVariable(name, type);
+      coerced[name] = n;
+    } else if (type === 'Boolean') {
+      if (value !== 'true' && value !== 'false') throw invalidVariable(name, type);
+      coerced[name] = value === 'true';
+    }
+  }
+  return coerced;
+}
+
+function invalidVariable(name: string, type: string): GatewayError {
+  return new GatewayError('INVALID_INPUT', `Path parameter "${name}" must be a valid ${type}`, 400);
 }

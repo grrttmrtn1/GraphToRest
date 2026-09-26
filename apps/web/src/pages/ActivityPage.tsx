@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { ErrorPanel } from '../components/ErrorPanel';
+import { PageHeader } from '../components/PageHeader';
 
 export function ActivityPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -16,20 +17,21 @@ export function ActivityPage() {
 
   return (
     <section>
-      <h1>Activity</h1>
-      <label className="inline">
-        <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-        Refresh every 5 seconds
-      </label>
+      <PageHeader
+        eyebrow="Step 4 · Monitor"
+        title="Activity"
+        description="See recent gateway traffic, response times, and errors. Request bodies, query strings, and secrets are never recorded."
+        actions={<label className="inline"><input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />Refresh every 5 seconds</label>}
+      />
       {activity.isError ? (
         <ErrorPanel error={activity.error} onRetry={() => void activity.refetch()} />
       ) : activity.isPending ? (
-        <p className="muted">Loading…</p>
+        <p className="muted" role="status">Loading activity…</p>
       ) : items.length === 0 ? (
-        <p className="muted">No requests recorded yet.</p>
+        <div className="empty-state"><div><strong>No requests recorded yet.</strong><p>Send a request from the API explorer and it will appear here with its status and duration.</p></div></div>
       ) : (
         <>
-          <table>
+          <div className="table-shell"><table>
             <thead>
               <tr>
                 <th>Time</th>
@@ -46,11 +48,11 @@ export function ActivityPage() {
               {items.map((item) => (
                 <tr key={item.id}>
                   <td>{new Date(item.ts).toLocaleString()}</td>
-                  <td>{item.method}</td>
+                  <td><span className={`method-badge ${item.method.toLowerCase()}`}>{item.method}</span></td>
                   <td>
                     <code>{item.path}</code>
                   </td>
-                  <td>{item.status}</td>
+                  <td><span className={`status-badge ${statusTone(item.status)}`}>{item.status}</span></td>
                   <td>{item.durationMs} ms</td>
                   <td>{item.apiKeyLabel ?? item.apiKeyId ?? '—'}</td>
                   <td>{item.connectionName ?? '—'}</td>
@@ -58,7 +60,7 @@ export function ActivityPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           {activity.hasNextPage && (
             <button type="button" onClick={() => void activity.fetchNextPage()} disabled={activity.isFetchingNextPage}>
               Load older
@@ -68,4 +70,10 @@ export function ActivityPage() {
       )}
     </section>
   );
+}
+
+function statusTone(status: number): string {
+  if (status >= 500) return 'danger';
+  if (status >= 400) return 'warning';
+  return 'success';
 }

@@ -1,7 +1,7 @@
 import type { MappingStore, MappingRecord } from '../storage/MappingStore';
 import type { RequestContext } from '../adapters/Adapter';
 import { createAdapter } from '../adapters/registry';
-import { matchRoute } from './matchRoute';
+import { matchRoute, isParamSegment } from './matchRoute';
 import { GatewayError } from './errors';
 import { buildAuthContext } from '../auth/authContext';
 import type { AccessTokenProvider } from '../auth/managedTokenService';
@@ -28,13 +28,15 @@ export class GatewayEngine {
     private cache?: ResponseCache
   ) {}
 
+  /** When several routes match, the most specific wins: at the first segment where they differ, a literal beats a `{param}`. */
   resolve(method: string, path: string): ResolvedRequest | null {
+    let best: ResolvedRequest | null = null;
     for (const mapping of this.mappingStore.listMappings()) {
       if (mapping.method.toUpperCase() !== method.toUpperCase()) continue;
       const params = matchRoute(mapping.route, path);
-      if (params) return { mapping, params };
+      if (params && (!best || compareSpecificity(mapping.route, best.mapping.route) > 0)) best = { mapping, params };
     }
-    return null;
+    return best;
   }
 
   async handle(
@@ -90,6 +92,18 @@ export class GatewayEngine {
     if (cacheKey) this.cache!.set(cacheKey, shaped, { mappingId: mapping.id, connectionId: connection.id, ttlSeconds, epoch: cacheEpoch });
     return shaped;
   }
+}
+
+/** Positive when route `a` is more specific than `b` (both matched the same path, so they have the same segment count). */
+function compareSpecificity(a: string, b: string): number {
+  const aSegments = a.split('/').filter(Boolean);
+  const bSegments = b.split('/').filter(Boolean);
+  for (let i = 0; i < aSegments.length; i++) {
+    const aParam = isParamSegment(aSegments[i]);
+    const bParam = isParamSegment(bSegments[i]);
+    if (aParam !== bParam) return aParam ? -1 : 1;
+  }
+  return 0;
 }
 
 function resolveVariables(operation: Record<string, unknown>, params: Record<string, string>): Record<string, unknown> {

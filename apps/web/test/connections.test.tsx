@@ -39,7 +39,7 @@ describe('connections list', () => {
     ]);
     renderApp('/connections');
     await screen.findByRole('link', { name: 'mock-conn' });
-    await screen.findByRole('option', { name: 'graphql' });
+    await screen.findByRole('option', { name: 'GraphQL' });
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'gql' } });
     fireEvent.change(screen.getByLabelText('Adapter'), { target: { value: 'graphql' } });
@@ -64,7 +64,7 @@ describe('connections list', () => {
     ]);
     renderApp('/connections');
     await screen.findByText('No connections yet.');
-    await screen.findByRole('option', { name: 'mock' });
+    await screen.findByRole('option', { name: 'Mock' });
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'dup' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create connection' }));
     expect(await screen.findByText('A connection with this name already exists')).toBeTruthy();

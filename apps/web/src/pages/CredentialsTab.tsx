@@ -72,20 +72,26 @@ export function CredentialsTab({ connection }: { connection: Connection }) {
   });
 
   return (
-    <div>
+    <div className="content-grid">
       <div className="panel">
-        <h2>Status</h2>
+        <div className="panel-header"><div><h2>Credential status</h2><p>GraphToRest uses these credentials when it calls the upstream service.</p></div></div>
         {status.isError ? (
           <ErrorPanel error={status.error} onRetry={() => void status.refetch()} />
         ) : status.isPending ? (
           <p className="muted">Loading…</p>
         ) : (
           <>
-            <p>{describeStatus(status.data)}</p>
+            <div className="status-card">
+              <span className={`status-dot ${status.data.configured ? 'ready' : ''}`} />
+              <div className="status-copy">
+                <p>{describeStatus(status.data)}</p>
+                <small>{status.data.configured ? 'The encrypted secret is stored on this server.' : 'Add credentials to enable gateway-managed upstream requests.'}</small>
+              </div>
+            </div>
             <div className="toolbar">
               {status.data.configured && status.data.grant === 'authorization_code' && (
                 <button type="button" onClick={() => authorize.mutate()} disabled={authorize.isPending}>
-                  Authorize
+                  {authorize.isPending ? 'Opening authorization…' : 'Authorize'}
                 </button>
               )}
               {status.data.configured && (
@@ -99,55 +105,57 @@ export function CredentialsTab({ connection }: { connection: Connection }) {
         )}
       </div>
       <div className="panel">
-        <h2>Set credentials</h2>
-        <p className="muted">Secrets are encrypted on the server and never shown again.</p>
+        <div className="panel-header"><div><h2>{status.data?.configured ? 'Replace credentials' : 'Set credentials'}</h2><p>Secrets are encrypted on the server and never shown again.</p></div></div>
         <form
           onSubmit={(event) => {
             event.preventDefault();
             save.mutate();
           }}
         >
-          <label>
-            Grant
-            <select value={form.grant} onChange={update('grant')}>
-              <option value="client_credentials">client_credentials</option>
-              <option value="authorization_code">authorization_code</option>
-            </select>
-          </label>
-          <label>
-            Client ID
-            <input value={form.clientId} onChange={update('clientId')} required />
-          </label>
-          <label>
-            Client secret
-            <input type="password" value={form.clientSecret} onChange={update('clientSecret')} autoComplete="off" required />
-          </label>
-          {isMicrosoft ? (
-            <label>
-              Tenant ID
-              <input value={form.tenantId} onChange={update('tenantId')} required />
+          <div className="form-grid">
+            <label className="full">
+              Grant
+              <select aria-label="Grant" value={form.grant} onChange={update('grant')}>
+                <option value="client_credentials">Client credentials — server to server</option>
+                <option value="authorization_code">Authorization code — user consent</option>
+              </select>
+              <span className="field-hint">Choose how GraphToRest obtains an upstream access token.</span>
             </label>
-          ) : (
-            <>
+            <label>
+              Client ID
+              <input value={form.clientId} onChange={update('clientId')} placeholder="Application client ID" required />
+            </label>
+            <label>
+              Client secret
+              <input type="password" value={form.clientSecret} onChange={update('clientSecret')} placeholder="••••••••••••" autoComplete="off" required />
+            </label>
+            {isMicrosoft ? (
+              <label className="full">
+                Tenant ID
+                <input value={form.tenantId} onChange={update('tenantId')} placeholder="Directory tenant ID" required />
+              </label>
+            ) : (
+              <>
               <label>
                 Token URL
-                <input type="url" value={form.tokenUrl} onChange={update('tokenUrl')} required />
+                <input type="url" value={form.tokenUrl} onChange={update('tokenUrl')} placeholder="https://provider.example.com/oauth/token" required />
               </label>
               {form.grant === 'authorization_code' && (
                 <label>
                   Authorize URL
-                  <input type="url" value={form.authorizeUrl} onChange={update('authorizeUrl')} required />
+                  <input type="url" value={form.authorizeUrl} onChange={update('authorizeUrl')} placeholder="https://provider.example.com/oauth/authorize" required />
                 </label>
               )}
-            </>
-          )}
-          <label>
-            Scopes (space-separated, optional)
-            <input value={form.scopes} onChange={update('scopes')} />
-          </label>
+              </>
+            )}
+            <label className="full">
+              Scopes (space-separated, optional)
+              <input value={form.scopes} onChange={update('scopes')} placeholder="openid profile offline_access" />
+            </label>
+          </div>
           <FormError error={save.error} />
           <button type="submit" disabled={save.isPending}>
-            Save credentials
+            {save.isPending ? 'Saving securely…' : 'Save credentials'}
           </button>
         </form>
       </div>

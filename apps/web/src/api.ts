@@ -27,7 +27,7 @@ export class ApiError extends Error {
 
 let unauthorizedHandler: () => void = () => {};
 
-/** Registered by the app root: a 401 from any admin call (other than login) ends the client-side session. */
+/** Registered by the app root: an admin-auth 401 (other than login) ends the client-side session. */
 export function setUnauthorizedHandler(handler: () => void): void {
   unauthorizedHandler = handler;
 }
@@ -48,8 +48,14 @@ export async function apiFetch<T>(
   } catch {
     throw new ApiError(0, 'NETWORK_ERROR', 'Could not reach the server');
   }
-  if (response.status === 401 && path !== '/admin/login') unauthorizedHandler();
-  if (!response.ok) throw await toApiError(response);
+  if (!response.ok) {
+    const error = await toApiError(response);
+    // Admin operations can also return 401 for reasons unrelated to the UI session, such as a
+    // missing passthrough vendor token. Only the auth middleware's UNAUTHORIZED response means
+    // the admin session has ended and should send the user back to login.
+    if (error.status === 401 && error.code === 'UNAUTHORIZED' && path !== '/admin/login') unauthorizedHandler();
+    throw error;
+  }
   if (response.status === 204) return undefined as T;
   const type = response.headers.get('content-type') ?? '';
   return (type.includes('application/json') ? await response.json() : await response.text()) as T;

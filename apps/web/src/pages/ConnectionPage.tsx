@@ -7,6 +7,8 @@ import { OAuthBanner } from '../components/OAuthBanner';
 import { OverviewTab } from './OverviewTab';
 import { CredentialsTab } from './CredentialsTab';
 import { MappingsTab } from './MappingsTab';
+import { Icon } from '../components/Icon';
+import { PageHeader } from '../components/PageHeader';
 
 type Tab = 'overview' | 'credentials' | 'mappings';
 const TAB_LABELS: Record<Tab, string> = { overview: 'Overview', credentials: 'Credentials', mappings: 'Mappings' };
@@ -18,7 +20,7 @@ export function ConnectionPage() {
   const connections = useQuery({ queryKey: ['connections'], queryFn: api.connections });
 
   if (connections.isError) return <ErrorPanel error={connections.error} onRetry={() => void connections.refetch()} />;
-  if (connections.isPending) return <p className="muted">Loading…</p>;
+  if (connections.isPending) return <p className="muted" role="status">Loading connection…</p>;
   const connection = connections.data.find((c) => c.id === id);
   if (!connection) {
     return (
@@ -32,10 +34,13 @@ export function ConnectionPage() {
   const activeTab = tabs.includes(tab) ? tab : 'overview';
   return (
     <section>
-      <p>
-        <Link to="/connections">← Connections</Link>
-      </p>
-      <h1>{connection.name}</h1>
+      <Link className="back-link" to="/connections"><Icon name="chevron-left" /> All connections</Link>
+      <PageHeader
+        eyebrow="Connection"
+        title={connection.name}
+        description="Manage how this source authenticates and which REST endpoints it exposes."
+        actions={<><span className="badge">{connection.adapterType === 'microsoft-graph' ? 'Microsoft Graph' : connection.adapterType}</span><span className="badge accent">{connection.authMode}</span></>}
+      />
       <OAuthBanner />
       <div className="tabs" role="tablist">
         {tabs.map((t) => (
@@ -44,9 +49,11 @@ export function ConnectionPage() {
           </button>
         ))}
       </div>
-      {activeTab === 'overview' && <OverviewTab connection={connection} />}
-      {activeTab === 'credentials' && <CredentialsTab connection={connection} />}
-      {activeTab === 'mappings' && <MappingsTab connection={connection} />}
+      <div role="tabpanel">
+        {activeTab === 'overview' && <OverviewTab connection={connection} />}
+        {activeTab === 'credentials' && <CredentialsTab connection={connection} />}
+        {activeTab === 'mappings' && <MappingsTab connection={connection} />}
+      </div>
     </section>
   );
 }
