@@ -35,6 +35,8 @@ export class OpenApiGenerator {
     return {
       openapi: '3.0.3',
       info: { title: 'GraphToRest API', version: '1.0.0' },
+      // Mapped routes are served under /api; without this, Swagger UI sends "Try it out" requests to the origin root.
+      servers: [{ url: '/api' }],
       paths,
     };
   }

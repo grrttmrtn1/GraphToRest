@@ -21,6 +21,11 @@ describe('OpenApiGenerator', () => {
     expect(doc.info.title).toBe('GraphToRest API');
   });
 
+  it('declares /api as the server so "Try it out" requests reach the gateway, not the web UI', () => {
+    const doc = generator.generate([mapping]) as any;
+    expect(doc.servers).toEqual([{ url: '/api' }]);
+  });
+
   it('adds a path item keyed by the route with a lowercase method', () => {
     const doc = generator.generate([mapping]) as any;
     expect(doc.paths['/users/{id}'].get).toBeDefined();
