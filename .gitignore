@@ -8,3 +8,5 @@ data/
 .worktrees/
 .superpowers/
 .claude/worktrees/
+.env
+docker-compose.override.yml

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
-import { renderApp, mockFetch, SESSION_ROUTE } from './render';
+import { renderApp, mockFetch, SESSION_ROUTE, type MockRoute } from './render';
 
 const UNAUTHORIZED = { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'Admin login required', details: {} } } };
 
@@ -53,6 +53,25 @@ describe('login', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Log out' }));
     expect(await screen.findByLabelText('Username')).toBeTruthy();
     expect(calls.some((c) => c.method === 'POST' && c.path === '/admin/logout')).toBe(true);
+  });
+
+  it('sends an admin whose session expires mid-use to the login page, then back to the same page', async () => {
+    // The session check passes, but the page's own data call hits a session that expired server-side.
+    const apiKeys: MockRoute = { path: '/admin/api-keys', ...UNAUTHORIZED };
+    const { calls } = mockFetch([
+      SESSION_ROUTE,
+      apiKeys,
+      { method: 'POST', path: '/admin/login', body: { username: 'admin', expiresAt: '2099-01-01T00:00:00.000Z' } },
+    ]);
+    renderApp('/api-keys');
+    expect(await screen.findByLabelText('Username')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'API keys' })).toBeNull();
+
+    Object.assign(apiKeys, { status: 200, body: [] });
+    fillLogin('admin', 'correct-horse-battery');
+
+    expect(await screen.findByText('No API keys yet.')).toBeTruthy();
+    expect(calls.filter((c) => c.path === '/admin/api-keys')).toHaveLength(2);
   });
 
   it('shows an error panel when the session check fails for another reason', async () => {

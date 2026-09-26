@@ -160,6 +160,11 @@ describe('gtr connection', () => {
     const c = cli();
     await createConnection(c, 'm', 'managed');
     expect(await c.run(['connection', 'credentials', 'set', 'm', '--db', c.dbPath])).toBe(2);
+    const file = tempPath('gtr-creds', '.json');
+    files.push(file);
+    fs.writeFileSync(file, '{}');
+    expect(await c.run(['connection', 'credentials', 'set', 'm', '--credentials', '{}', '--credentials-file', file, '--db', c.dbPath])).toBe(2);
+    expect(c.stderr()).toContain('error: Provide exactly one of --credentials or --credentials-file');
     expect(await c.run(['connection', 'credentials', 'set', 'm', '--credentials', '{"clientSecret": "leak', '--db', c.dbPath])).toBe(2);
     expect(c.stderr()).toContain('error: Credentials are not valid JSON');
     expect(c.stderr()).not.toContain('leak');

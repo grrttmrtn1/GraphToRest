@@ -36,7 +36,11 @@ describe('gtr apikey', () => {
     expect(created.code).toBe(0);
     expect(created.stdout).toMatch(/^Created API key \S+ \(ci\):\n\S+\n$/);
     expect(created.stderr).toBe('Store this key now; it cannot be shown again.\n');
+    const unlabelled = await run(c, ['apikey', 'create']);
+    expect(unlabelled.code).toBe(0);
+    expect(unlabelled.stdout).toMatch(/^Created API key \S+:\n\S+\n$/);
     const json = await run(c, ['apikey', 'create', '--json']);
+    expect(JSON.parse(json.stdout).label).toBeNull();
     expect(Object.keys(JSON.parse(json.stdout)).sort()).toEqual(['id', 'label', 'plaintext', 'rateLimit']);
   });
 

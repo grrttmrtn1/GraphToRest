@@ -36,6 +36,15 @@ describe('createTtyPrompter', () => {
     expect(written()).not.toContain('s3cret-value');
   });
 
+  it('rejects with ABORTED (exit 130) on Ctrl+C, without echoing a hidden answer typed so far', async () => {
+    const { input, output, written } = streams();
+    const answer = createTtyPrompter(input, output).askHidden('Password: ');
+    input.write('half-typed');
+    input.write('\x03');
+    await expect(answer).rejects.toMatchObject({ code: 'ABORTED', exitCode: 130 });
+    expect(written()).not.toContain('half-typed');
+  });
+
   it('confirms only on y or yes', async () => {
     for (const [typed, expected] of [['y', true], ['YES', true], ['', false], ['n', false]] as const) {
       const { input, output } = streams();

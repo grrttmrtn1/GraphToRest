@@ -136,6 +136,16 @@ describe('gtr mapping', () => {
     expect(missing.stderr).toBe('error: Cannot read /definitely/not/here.yaml: ENOENT\n');
   });
 
+  it('keeps stdout empty on a --json failure and reports on stderr with the exit code', async () => {
+    const c = await withConnection();
+    const malformed = await run(c, ['mapping', 'create', '--connection', 'c1', '--route', '/no-method', '--operation', '{}', '--json']);
+    expect(malformed).toMatchObject({ code: 2, stdout: '' });
+    expect(malformed.stderr).toMatch(/^error: .*Malformed route/);
+    const missing = await run(c, ['mapping', 'delete', 'no-such-mapping', '--yes', '--json']);
+    expect(missing).toMatchObject({ code: 4, stdout: '' });
+    expect(missing.stderr).toMatch(/^error: /);
+  });
+
   it('includes warnings in the JSON result instead of stderr with --json', async () => {
     const c = await withConnection();
     await run(c, ['mapping', 'generate', '--connection', 'c1']);

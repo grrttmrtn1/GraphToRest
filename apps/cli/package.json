@@ -6,13 +6,15 @@
   },
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "@graphtorest/core": "*",
     "commander": "^12.1.0"
   },
   "devDependencies": {
+    "@graphtorest/server": "*",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.11"

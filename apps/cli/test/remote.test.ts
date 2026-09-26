@@ -184,7 +184,7 @@ describe('RemoteClient sessions', () => {
       source: '--server',
       session: { username: 'admin', expiresAt: 'soon' },
     });
-    expect((await client(expired.impl).describe()).session).toBe('expired');
-    expect((await client(fakeFetch({}).impl, { token: null }).describe()).session).toBe('not-logged-in');
+    expect(await client(expired.impl).describe()).toMatchObject({ mode: 'remote', session: 'expired' });
+    expect(await client(fakeFetch({}).impl, { token: null }).describe()).toMatchObject({ mode: 'remote', session: 'not-logged-in' });
   });
 });
