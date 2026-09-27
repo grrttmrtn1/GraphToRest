@@ -15,7 +15,7 @@ import {
   exportMappingsYaml,
   importMappingsYaml,
   silentLogger,
-  parseConnectionConfig,
+  parseConnectionFields,
   redactVendorText,
   parseRateLimitSetting,
   type ResponseCache,
@@ -230,14 +230,9 @@ export function createAdminRouter(mappingStore: MappingStore, options: AdminRout
   });
 
   router.post('/connections', (req, res) => {
-    const { name, adapterType, authMode, config } = req.body ?? {};
-    if (!name || !adapterType || !authMode) {
-      sendError(res, 400, 'INVALID_INPUT', 'name, adapterType, authMode required');
-      return;
-    }
+    const { name, adapterType, authMode, config } = parseConnectionFields(req.body);
     try {
-      const parsedConfig = parseConnectionConfig(config);
-      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode, config: parsedConfig }));
+      res.status(201).json(mappingStore.createConnection({ name, adapterType, authMode, config }));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === 'SQLITE_CONSTRAINT_UNIQUE') {

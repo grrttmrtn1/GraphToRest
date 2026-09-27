@@ -10,7 +10,7 @@ export function createApiRouter(gatewayEngine: GatewayEngine, logger: Logger = s
         req.method,
         req.path,
         { vendorToken },
-        { query: req.query as Record<string, string>, body: req.body },
+        { query: req.query as Record<string, unknown>, body: req.body },
         {
           onMatch: (mapping) => {
             res.locals.connectionId = mapping.connectionId;

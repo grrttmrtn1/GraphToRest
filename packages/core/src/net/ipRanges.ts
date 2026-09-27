@@ -8,7 +8,11 @@ const BLOCKED_V4: Array<[number, number]> = [
   [0x7f000000, 8], // 127/8 loopback
   [0xa9fe0000, 16], // 169.254/16 link-local incl. cloud metadata
   [0xac100000, 12], // 172.16/12
+  [0xc0000000, 24], // 192.0.0/24 IETF protocol assignments
   [0xc0a80000, 16], // 192.168/16
+  [0xc6120000, 15], // 198.18/15 benchmarking
+  [0xe0000000, 4], // 224/4 multicast
+  [0xf0000000, 4], // 240/4 reserved and limited broadcast
 ];
 
 function v4ToInt(ip: string): number {
@@ -65,5 +69,7 @@ export function isPrivateAddress(ip: string): boolean {
   if (g[0] === 0x2002) return isBlockedV4(((g[1] << 16) | g[2]) >>> 0); // 2002:AABB:CCDD::/48 6to4
   if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
   if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((g[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 deprecated site-local (still routed by some networks)
+  if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
   return false;
 }

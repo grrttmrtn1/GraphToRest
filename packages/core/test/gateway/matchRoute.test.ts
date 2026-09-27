@@ -28,4 +28,11 @@ describe('matchRoute', () => {
   it('decodes URI-encoded parameter values', () => {
     expect(matchRoute('/users/{id}', '/users/a%20b')).toEqual({ id: 'a b' });
   });
+
+  it('treats special object property names as ordinary parameters', () => {
+    const params = matchRoute('/users/{__proto__}', '/users/safe')!;
+    expect(Object.getPrototypeOf(params)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(params, '__proto__')).toBe(true);
+    expect(params.__proto__).toBe('safe');
+  });
 });

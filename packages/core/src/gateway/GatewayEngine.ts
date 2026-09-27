@@ -109,7 +109,7 @@ function compareSpecificity(a: string, b: string): number {
 function resolveVariables(operation: Record<string, unknown>, params: Record<string, string>): Record<string, unknown> {
   const variables = operation.variables as Record<string, unknown> | undefined;
   if (!variables) return operation;
-  const resolved: Record<string, unknown> = {};
+  const resolved: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [key, value] of Object.entries(variables)) {
     if (typeof value === 'string' && value.startsWith('$params.')) {
       resolved[key] = params[value.slice('$params.'.length)];
@@ -122,7 +122,7 @@ function resolveVariables(operation: Record<string, unknown>, params: Record<str
 
 function shapeResponse(raw: unknown, template: Record<string, string> | null): unknown {
   if (!template) return raw;
-  const shaped: Record<string, unknown> = {};
+  const shaped: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [key, pointer] of Object.entries(template)) {
     shaped[key] = resolvePointer(raw, pointer);
   }

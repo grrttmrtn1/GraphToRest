@@ -4,7 +4,8 @@ export { MockAdapter } from './adapters/MockAdapter';
 export { MicrosoftGraphAdapter } from './adapters/microsoftGraph/MicrosoftGraphAdapter';
 export { GraphQLAdapter } from './adapters/graphql/GraphQLAdapter';
 export { registerDefaultAdapters } from './adapters/defaults';
-export { parseConnectionConfig } from './adapters/connectionConfig';
+export { parseConnectionConfig, parseConnectionFields, MAX_CONNECTION_NAME_LENGTH } from './adapters/connectionConfig';
+export type { ConnectionFields } from './adapters/connectionConfig';
 
 export { openDb } from './storage/db';
 export { MappingStore } from './storage/MappingStore';

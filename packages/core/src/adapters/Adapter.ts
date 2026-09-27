@@ -6,7 +6,7 @@ export interface AuthContext {
 }
 
 export interface RequestContext {
-  query?: Record<string, string>;
+  query?: Record<string, unknown>;
   body?: unknown;
 }
 

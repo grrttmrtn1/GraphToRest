@@ -10,7 +10,9 @@ export function matchRoute(pattern: string, actualPath: string): Record<string, 
   if (patternSegments.length !== actualSegments.length) {
     return null;
   }
-  const params: Record<string, string> = {};
+  // Route parameter names are configuration, not trusted object property names. A null prototype keeps names such
+  // as "__proto__" as ordinary own properties instead of invoking Object.prototype setters.
+  const params: Record<string, string> = Object.create(null) as Record<string, string>;
   for (let i = 0; i < patternSegments.length; i++) {
     const patternSegment = patternSegments[i];
     const actualSegment = actualSegments[i];

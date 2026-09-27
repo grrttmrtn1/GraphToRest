@@ -105,6 +105,19 @@ describe('cookie-authenticated requests', () => {
     expect(res.status).toBe(201);
   });
 
+  it('rejects an Origin whose host matches but scheme differs', async () => {
+    const app = buildApp();
+    const { cookie } = await cookieLogin(app);
+    const res = await request(app)
+      .post('/admin/connections')
+      .set('Cookie', cookie)
+      .set('Host', 'lan-box:3000')
+      .set('Origin', 'https://lan-box:3000')
+      .send(CONNECTION);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('CSRF_REJECTED');
+  });
+
   it('accepts a write whose Origin matches PUBLIC_BASE_URL', async () => {
     const app = buildApp();
     const { cookie } = await cookieLogin(app);

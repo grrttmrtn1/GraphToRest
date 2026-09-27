@@ -115,6 +115,38 @@ describe('GatewayEngine.handle', () => {
     expect(spyAdapter.capturedOperation?.variables).toEqual({ id: '42' });
   });
 
+  it('preserves special property names in parameters, variables, and response templates', async () => {
+    let capturedVariables: Record<string, unknown> | undefined;
+    registerAdapter('special-keys', () => ({
+      type: 'special-keys',
+      async introspect() {
+        return {};
+      },
+      async generateMappings() {
+        return [];
+      },
+      async execute(operation) {
+        capturedVariables = operation.variables as Record<string, unknown>;
+        return { value: 'ok' };
+      },
+    }));
+    const connection = store.createConnection({ name: 'special', adapterType: 'special-keys', authMode: 'passthrough' });
+    store.createMapping({
+      connectionId: connection.id,
+      route: '/special/{__proto__}',
+      method: 'GET',
+      operation: { variables: JSON.parse('{"__proto__":"$params.__proto__"}') },
+      responseTemplate: JSON.parse('{"__proto__":"$.value"}'),
+    });
+
+    const result = (await engine.handle('GET', '/special/safe')) as Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(capturedVariables)).toBeNull();
+    expect(capturedVariables?.__proto__).toBe('safe');
+    expect(Object.getPrototypeOf(result)).toBeNull();
+    expect(JSON.stringify(result)).toBe('{"__proto__":"ok"}');
+  });
+
   it('throws a 500 GatewayError when mapping references a non-existent connection', async () => {
     // Create a real connection and mapping, then delete the connection to simulate dangling reference
     const connection = store.createConnection({ name: 'c3', adapterType: 'mock', authMode: 'passthrough' });

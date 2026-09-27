@@ -66,6 +66,11 @@ describe.each(HARNESSES)('GtrClient contract (%s)', (kind, makeHarness) => {
       expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: 'mock', authMode: '' }))).toBe('INVALID_INPUT');
     });
 
+    it('rejects unsupported adapters and auth modes', async () => {
+      expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: 'unknown', authMode: 'passthrough' }))).toBe('INVALID_INPUT');
+      expect(await codeOf(h.client.createConnection({ name: 'c1', adapterType: 'mock', authMode: 'other' }))).toBe('INVALID_INPUT');
+    });
+
     it('rejects a connection endpoint with embedded credentials', async () => {
       expect(
         await codeOf(

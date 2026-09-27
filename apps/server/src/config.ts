@@ -75,6 +75,23 @@ function parseTrustProxy(value: string | undefined): ServerConfig['trustProxy'] 
   return value;
 }
 
+function parsePublicBaseUrl(value: string | undefined, port: number): string {
+  const raw = value || `http://localhost:${port}`;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`PUBLIC_BASE_URL must be an http or https origin, got "${raw}"`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`PUBLIC_BASE_URL must be an http or https origin, got "${raw}"`);
+  }
+  if (url.username || url.password || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '')) {
+    throw new Error(`PUBLIC_BASE_URL must be an origin without credentials, a path, query, or fragment, got "${raw}"`);
+  }
+  return url.origin;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const port = parseInteger(env, 'PORT', 3000, 1, 65535);
   const outbound = outboundPolicyFromEnv(env);
@@ -84,7 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     apiEnabled: env.API_ENABLED !== 'false',
     adminEnabled: env.ADMIN_ENABLED !== 'false',
     credentialEncryptionKey: env.CREDENTIAL_ENCRYPTION_KEY || undefined,
-    publicBaseUrl: (env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
+    publicBaseUrl: parsePublicBaseUrl(env.PUBLIC_BASE_URL, port),
     activityRetention: parseInteger(env, 'ACTIVITY_RETENTION', 1000, 1),
     webEnabled: env.WEB_ENABLED !== 'false',
     logLevel: parseLogLevel(env.LOG_LEVEL),

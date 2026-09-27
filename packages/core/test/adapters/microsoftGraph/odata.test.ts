@@ -15,10 +15,16 @@ describe('normalizeRequestQuery', () => {
     expect(normalizeRequestQuery({ limit: '25' })).toEqual({ limit: 25 });
   });
 
-  it('ignores a non-numeric or non-positive limit', () => {
-    expect(normalizeRequestQuery({ limit: 'abc' })).toEqual({});
-    expect(normalizeRequestQuery({ limit: '-5' })).toEqual({});
-    expect(normalizeRequestQuery({ limit: '0' })).toEqual({});
+  it('rejects a non-integer or non-positive limit', () => {
+    for (const limit of ['abc', '-5', '0', '1.5']) {
+      expect(() => normalizeRequestQuery({ limit })).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+    }
+  });
+
+  it('rejects duplicate or structured known query parameters', () => {
+    expect(() => normalizeRequestQuery({ select: ['id', 'mail'] })).toThrow('single string');
+    expect(() => normalizeRequestQuery({ cursor: { token: 'x' } })).toThrow('single string');
+    expect(() => normalizeRequestQuery({ limit: ['10', '20'] })).toThrow('positive integer');
   });
 
   it('passes cursor through unchanged', () => {

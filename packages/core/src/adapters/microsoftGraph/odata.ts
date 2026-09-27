@@ -10,17 +10,27 @@ export interface NormalizedRequestQuery {
   cursor?: string;
 }
 
-export function normalizeRequestQuery(query?: Record<string, string>): NormalizedRequestQuery {
+export function normalizeRequestQuery(query?: Record<string, unknown>): NormalizedRequestQuery {
   if (!query) return {};
   const normalized: NormalizedRequestQuery = {};
-  if (query.select) normalized.select = query.select;
-  if (query.filter) normalized.filter = query.filter;
-  if (query.expand) normalized.expand = query.expand;
-  if (query.limit) {
-    const parsed = Number(query.limit);
-    if (Number.isFinite(parsed) && parsed > 0) normalized.limit = parsed;
+  for (const name of ['select', 'filter', 'expand', 'cursor'] as const) {
+    const value = query[name];
+    if (value === undefined || value === '') continue;
+    if (typeof value !== 'string') {
+      throw new GatewayError('INVALID_INPUT', `"${name}" must be a single string`, 400);
+    }
+    normalized[name] = value;
   }
-  if (query.cursor) normalized.cursor = query.cursor;
+  if (query.limit !== undefined && query.limit !== '') {
+    if (typeof query.limit !== 'string') {
+      throw new GatewayError('INVALID_INPUT', '"limit" must be a positive integer', 400);
+    }
+    const parsed = Number(query.limit);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      throw new GatewayError('INVALID_INPUT', '"limit" must be a positive integer', 400);
+    }
+    normalized.limit = parsed;
+  }
   return normalized;
 }
 

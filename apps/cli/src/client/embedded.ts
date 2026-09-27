@@ -10,7 +10,7 @@ import {
   exportMappingsYaml,
   importMappingsYaml,
   parseMappingFields,
-  parseConnectionConfig,
+  parseConnectionFields,
   setOutboundPolicy,
   outboundPolicyFromEnv,
   parseRateLimitSetting,
@@ -79,12 +79,9 @@ export class EmbeddedClient implements GtrClient {
   }
 
   async createConnection(input: CreateConnectionInput) {
-    if (!input.name || !input.adapterType || !input.authMode) {
-      throw invalid('name, adapterType, authMode required');
-    }
-    const config = parseConnectionConfig(input.config);
+    const fields = parseConnectionFields(input);
     try {
-      return this.store.createConnection({ ...input, config });
+      return this.store.createConnection(fields);
     } catch (err) {
       if (sqliteCode(err) === 'SQLITE_CONSTRAINT_UNIQUE') throw new CliError('CONFLICT', 'A connection with this name already exists');
       throw err;

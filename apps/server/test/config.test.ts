@@ -77,6 +77,20 @@ describe('loadConfig', () => {
     expect(loadConfig({ PORT: '4000' }).publicBaseUrl).toBe('http://localhost:4000');
   });
 
+  it('normalizes and validates PUBLIC_BASE_URL as an origin', () => {
+    expect(loadConfig({ PUBLIC_BASE_URL: 'HTTPS://GTR.EXAMPLE.COM:443/' }).publicBaseUrl).toBe('https://gtr.example.com');
+    for (const value of [
+      'not-a-url',
+      'ftp://gtr.example.com',
+      'https://user:pass@gtr.example.com',
+      'https://gtr.example.com/prefix',
+      'https://gtr.example.com?x=1',
+      'https://gtr.example.com/#fragment',
+    ]) {
+      expect(() => loadConfig({ PUBLIC_BASE_URL: value })).toThrow('PUBLIC_BASE_URL');
+    }
+  });
+
   it.each(['0', '-1', '1.5', 'many'])('rejects ACTIVITY_RETENTION=%s', (value) => {
     expect(() => loadConfig({ ACTIVITY_RETENTION: value })).toThrow(/ACTIVITY_RETENTION/);
   });

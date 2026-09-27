@@ -1,7 +1,8 @@
 import express, { type Router } from 'express';
 import path from 'node:path';
 
-export const WEB_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
+export const WEB_CSP =
+  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 function isReservedPath(requestPath: string): boolean {
   return requestPath === '/api' || requestPath.startsWith('/api/') || requestPath === '/admin' || requestPath.startsWith('/admin/');

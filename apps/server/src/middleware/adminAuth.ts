@@ -57,9 +57,12 @@ function csrfRejection(req: Request, publicBaseUrl: string | undefined): string 
     } catch {
       return 'Cross-site request rejected';
     }
-    const matchesHost = parsed.host === req.header('host');
+    // Host alone is not an origin: accepting http://host for an https://host request would make the
+    // schemeful same-origin check ineffective. req.protocol respects Express's configured trust-proxy policy.
+    const requestOrigin = req.header('host') ? originOf(`${req.protocol}://${req.header('host')}`) : null;
+    const matchesRequestOrigin = requestOrigin === parsed.origin;
     const matchesPublicBase = publicBaseUrl !== undefined && originOf(publicBaseUrl) === parsed.origin;
-    if (!matchesHost && !matchesPublicBase) return 'Cross-site request rejected';
+    if (!matchesRequestOrigin && !matchesPublicBase) return 'Cross-site request rejected';
   } else if (req.header('sec-fetch-site') !== 'same-origin') {
     return 'Cross-site request rejected';
   }

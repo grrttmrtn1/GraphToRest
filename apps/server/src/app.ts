@@ -43,9 +43,17 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
+  app.disable('x-powered-by');
   if (deps.trustProxy !== undefined) app.set('trust proxy', deps.trustProxy);
   const logger = deps.logger ?? silentLogger;
   const rateLimiter = deps.rateLimiter ?? new RateLimiter({ defaultLimit: null });
+
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
 
   // Unauthenticated and not recorded to request_log; always registered regardless of apiEnabled/adminEnabled.
   app.get('/healthz', (_req, res) => {

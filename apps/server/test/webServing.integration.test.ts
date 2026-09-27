@@ -8,7 +8,7 @@ import { createApp } from '../src/app';
 import { createAdminClient } from './helpers';
 
 const INDEX_HTML = '<!doctype html><html><head><title>gtr-test-index</title></head><body></body></html>';
-const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
+const CSP = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 let dbPath: string;
 let webRoot: string;
@@ -48,6 +48,10 @@ describe('SPA serving', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('gtr-test-index');
     expect(res.headers['content-security-policy']).toBe(CSP);
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['referrer-policy']).toBe('no-referrer');
+    expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
   it('serves static assets with the CSP header', async () => {

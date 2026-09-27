@@ -164,4 +164,16 @@ describe('Microsoft Graph adapter end-to-end', () => {
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('Request_ResourceNotFound');
   });
+
+  it('rejects malformed and duplicate Graph query parameters before calling Graph', async () => {
+    const apiKey = await seedMicrosoftGraphConnection();
+    for (const query of ['limit=1.5', 'limit=0', 'select=id&select=mail']) {
+      const res = await request(app)
+        .get(`/api/msgraph/users?${query}`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .set('X-Vendor-Token', 'vendor-token-1');
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+    }
+  });
 });
